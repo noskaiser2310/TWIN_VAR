@@ -231,27 +231,92 @@ PER_SCENE_CONFIG: dict[str, dict] = {
 }
 
 
+# Safer defaults for auto-detected unknown scenes (less aggressive than hand-tuned)
+_AUTO_OUTDOOR_DEFAULTS: dict = {
+    "white_bg": False,
+    "lambda_dssim": 0.25,
+    "percent_dense": 0.025,
+    "densify_until_iter": 25_000,
+    "densify_grad_threshold": 0.00015,
+    "depth_l1_weight_init": 1.5,
+    "depth_l1_weight_final": 0.08,
+    "sh_degree": 4,
+}
+
+
+def _analyze_scene(scene: str) -> dict:
+    """Auto-detect scene characteristics from COLMAP data.
+
+    Used when a scene is NOT in PER_SCENE_CONFIG. Uses per-image
+    COLMAP density (MB/image) as a robust metric for classification.
+    """
+    scene_dir = DATA_DIR / scene
+    if not scene_dir.exists():
+        print(f"[WARN] Scene directory {scene_dir} not found — using auto outdoor defaults")
+        return _AUTO_OUTDOOR_DEFAULTS.copy()
+
+    # Detect image count
+    img_dir = scene_dir / "train" / "images"
+    if not img_dir.exists():
+        img_dir = scene_dir / "images"
+    n_images = len(list(img_dir.glob("*"))) if img_dir.exists() else 0
+    if n_images == 0:
+        print(f"[WARN] Scene '{scene}' has 0 images — using auto outdoor defaults")
+        return _AUTO_OUTDOOR_DEFAULTS.copy()
+
+    # Detect COLMAP density (per image)
+    points_paths = [
+        scene_dir / "train" / "sparse" / "0" / "points3D.bin",
+        scene_dir / "sparse" / "0" / "points3D.bin",
+    ]
+    colmap_mb = 0.0
+    for pp in points_paths:
+        if pp.exists():
+            colmap_mb = pp.stat().st_size / (1024 * 1024)
+            break
+
+    density = colmap_mb / max(n_images, 1)  # MB per image
+
+    # Classification by per-image COLMAP density (robust to image count)
+    if density < 0.03:                      # < 0.03 MB/image → indoor/synthetic
+        tier = "INDOOR"
+        result = _INDOOR_DEFAULTS.copy()
+    elif density < 0.08:                    # 0.03-0.08 → outdoor with moderate COLMAP
+        tier = "OUTDOOR (auto)"
+        result = _AUTO_OUTDOOR_DEFAULTS.copy()
+    else:                                   # > 0.08 → outdoor with dense COLMAP
+        tier = "OUTDOOR DENSE"
+        result = _OUTDOOR_DENSE_DEFAULTS.copy()
+
+    print(f"[AUTO-DETECT] Scene '{scene}': {tier} "
+          f"({n_images} imgs, {colmap_mb:.1f}MB, {density:.3f} MB/img). "
+          f"Add to PER_SCENE_CONFIG for optimal tuning.")
+    return result
+
+
 def get_scene_variant(variant: Variant, scene: str) -> Variant:
     """Create a scene-optimized copy of a Variant.
 
-    Applies PER_SCENE_CONFIG overrides for the given scene on top of
-    the variant's base settings. Returns a NEW Variant (does not mutate original).
+    Applies PER_SCENE_CONFIG overrides for known scenes,
+    or auto-detects scene characteristics for unknown scenes.
+    Returns a NEW Variant (does not mutate original).
 
     Usage:
         v = get_scene_variant(VARIANTS[0], "HCM0421")
         v.args_list(...)  # now has outdoor BTS densify params
     """
-    overrides = PER_SCENE_CONFIG.get(scene, {})
-    if not overrides:
-        return variant  # No overrides → return as-is
+    overrides = PER_SCENE_CONFIG.get(scene)
+    if overrides is None:
+        # Unknown scene → auto-detect based on COLMAP + image count
+        overrides = _analyze_scene(scene)
 
-    # Deep-copy to avoid mutating the original Variant (including list fields like checkpoint_iterations)
+    # Deep-copy to avoid mutating the original Variant
     v = copy.deepcopy(variant)
     for key, value in overrides.items():
         if hasattr(v, key):
             setattr(v, key, value)
         else:
-            warnings.warn(f"Unknown per-scene override key '{key}' for scene '{scene}' — ignored")
+            warnings.warn(f"Unknown per-scene override key '{key}' — ignored")
     return v
 
 

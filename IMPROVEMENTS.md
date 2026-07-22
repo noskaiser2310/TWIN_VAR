@@ -195,3 +195,47 @@ Tất cả chạy local, không phụ thuộc Kaggle, tự chủ trong src/_3dgs
 ---
 
 > **Tóm lại:** Từ baseline 4-script research của Inria, chúng tôi đã xây dựng **pipeline 9-phase tự động hoàn toàn**, tận dụng **89% tham số** của 3DGS (vs 14% mặc định), với **3 phương pháp ensemble**, **3-tier per-scene tuning**, **post-processing**, **competition metric evaluation**, và kiến trúc **tự chủ hoàn toàn** không phụ thuộc thư mục ngoài.
+
+---
+
+## 6. SOTA 2024-2026 — Hướng Cải Thiện Tiếp Theo
+
+Baseline 3DGS từ **SIGGRAPH 2023**. Đến 2026, có nhiều cải tiến **plug-and-play** có thể tích hợp:
+
+### 6.1 Đã tích hợp
+
+| Kỹ thuật | Paper | Tác động |
+|----------|-------|----------|
+| Depth regularization | Depth-Anything V2 (Yang, NeurIPS 2024) | +0.5-1.0 dB PSNR |
+| Anti-aliasing (EWA filter) | Mip-Splatting (Yu, CVPR 2024) | +1-2 dB PSNR, giảm aliasing |
+| Exposure compensation | 3DGS gốc (tích hợp sẵn) | Xử lý drone lighting variation |
+| Sparse Adam | Taming-3DGS (2024) | 2.7x faster |
+| Fused SSIM | Fused-SSIM (Goel, 2023) | ~2x faster training |
+
+### 6.2 Có thể tích hợp thêm
+
+| Kỹ thuật | Paper | Tác động dự kiến | Độ khó |
+|----------|-------|-----------------|--------|
+| **AbsGS** | AbsGS (Ye, ECCV 2024) | +0.5-1.0 dB — densification chính xác hơn, ít floaters | ⭐ Dễ (đổi gradient metric) |
+| **PixelGS** | PixelGS (Zhang, 2024) | +0.3-0.8 dB — pixel-aware density | ⭐⭐ Vừa (đổi densify logic) |
+| **LightGaussian** | LightGaussian (Fan, 2024) | Giảm 3-5x Gaussians, giữ chất lượng | ⭐⭐ Vừa (pruning pipeline) |
+| **EAGLES** | EAGLES (2025) | Tối ưu PSNR/parameter | ⭐⭐⭐ Khó (cần sửa rasterizer) |
+| **Neural Texture Splatting** | NTS (2025) | SH không đủ → latent texture cho specular | ⭐⭐⭐ Khó (cần thay đổi GaussianModel) |
+| **DUSt3R/MASt3R init** | DUSt3R (Wang, CVPR 2024) | Khởi tạo không cần COLMAP | ⭐⭐ Vừa (thay đổi init pipeline) |
+| **Background separation** | Street-Gaussians (2024) | Tách sky/foreground, giảm floaters | ⭐⭐ Vừa (thêm BG model) |
+| **Aggressive early pruning** | CVPR 2025 winners | Loại bỏ low-opacity Gaussians sớm hơn | ⭐ Dễ (đổi opacity_reset_interval) |
+
+### 6.3 Chiến lược tích hợp
+
+**Ưu tiên cao nhất (dễ + tác động lớn):**
+1. **AbsGS densification** — sửa gradient metric trong `_3dgs/train.py`, không cần thay đổi rasterizer
+2. **Aggressive early pruning** — giảm `opacity_reset_interval` từ 3000 → 1500, prune sớm hơn
+3. **Multi-scale depth priors** — dùng cả Depth-Anything V2 large + base để có multi-resolution depth
+
+**Ưu tiên trung bình:**
+4. **LightGaussian pruning** — sau train, prune model trước khi render/compact
+5. **Background separation** — thêm sky mask cho outdoor HCM scenes
+
+**Cần nghiên cứu thêm:**
+6. Neural Texture Splatting — thay SH bằng neural texture (cần sửa GaussianModel)
+7. DUSt3R init — bỏ COLMAP, khởi tạo từ ảnh trực tiếp
