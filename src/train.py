@@ -1,8 +1,16 @@
 """Train a single 3DGS variant locally. Wraps gaussian-splatting/train.py.
 
+Fully leverages ALL baseline features:
+  - eval mode, sh_degree, depth scheduling, densification tuning
+  - exposure compensation, anti-aliasing, sparse Adam, white/random BG
+  - checkpoint resume (big variant from full_60k)
+  - fused-ssim (auto-detected), list-based subprocess (no shell injection)
+  - --quiet flag for clean output
+
 Usage:
     python train.py --scene bonsai --variant full_60k
     python train.py --scene bonsai --variant fast --iters 7000
+    python train.py --scene bonsai --variant big   # resumes from full_60k
 """
 
 from __future__ import annotations
@@ -25,13 +33,15 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
     dst = work_dir / scene
     dst.mkdir(parents=True, exist_ok=True)
 
+    # Images
     img_src = src / "train" / "images"
     if not img_src.exists():
         img_src = src / "images"
     img_dst = dst / "images"
-    if not img_dst.exists():
+    if img_src.exists() and not img_dst.exists():
         shutil.copytree(str(img_src), str(img_dst))
 
+    # COLMAP sparse
     sp_src = src / "train" / "sparse"
     if not sp_src.exists():
         sp_src = src / "sparse"
@@ -39,7 +49,7 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
     if sp_src.exists() and not sp_dst.exists():
         shutil.copytree(str(sp_src), str(sp_dst))
 
-    # depth maps (if pre-generated)
+    # Depth maps (pre-generated)
     dep_src = src / "depths"
     dep_dst = dst / "depths"
     if dep_src.exists() and not dep_dst.exists():
@@ -51,18 +61,21 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
         shutil.copy(str(dp), str(dst / "depth_params.json"))
 
     # test_poses.csv
-    tp = src / "test" / "test_poses.csv"
-    if not tp.exists():
-        tp = src / "test_poses.csv"
-    if tp.exists():
-        shutil.copy(str(tp), str(dst / "test_poses.csv"))
+    for tp in [src / "test" / "test_poses.csv", src / "test_poses.csv"]:
+        if tp.exists():
+            shutil.copy(str(tp), str(dst / "test_poses.csv"))
+            break
 
     print(f"  [DATA] {scene}: {len(list(img_dst.glob('*')))} images prepared")
     return dst
 
 
 def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
-    """Train one 3DGS variant. Returns True on success."""
+    """Train one 3DGS variant. Returns True on success.
+
+    Uses list-based subprocess.run for safety (no shell injection).
+    Supports checkpoint resume via variant.start_checkpoint.
+    """
     if gs_dir is None:
         gs_dir = GS_DIR
     if not (gs_dir / "train.py").exists():
@@ -76,18 +89,46 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
     depth_dir = scene_dir / "depths"
     depth_arg = str(depth_dir) if depth_dir.exists() and variant.depth else ""
 
-    cmd = (
-        f'cd "{gs_dir}" && python train.py '
-        f'{variant.args(str(scene_dir), str(model_path), depth_arg)} '
-        f'--quiet'
+    # Checkpoint resume: find base model for resume
+    base_model: str | None = None
+    if variant.start_checkpoint:
+        base_candidate = OUTPUT_DIR / "models" / scene / variant.start_checkpoint
+        pc_dir = base_candidate / "point_cloud"
+        if pc_dir.exists():
+            # Find latest iteration
+            its = []
+            for d in pc_dir.iterdir():
+                if d.is_dir() and d.name.startswith("iteration_"):
+                    try:
+                        its.append(int(d.name.split("_")[1]))
+                    except ValueError:
+                        pass
+            if its:
+                load_iter = max(its)
+                base_cp = base_candidate / f"chkpnt{load_iter}.pth"
+                if base_cp.exists():
+                    base_model = str(base_candidate)
+                    print(f"  [RESUME] from {base_candidate.name}/chkpnt{load_iter}.pth")
+            else:
+                print(f"  [WARN] No checkpoint found in {base_candidate}, training from scratch")
+        else:
+            print(f"  [WARN] Base model {base_candidate} not found, training from scratch")
+
+    # Build command as list (safe, no shell injection)
+    cmd = [sys.executable, "train.py"] + variant.args_list(
+        str(scene_dir), str(model_path), depth_arg, base_model or ""
     )
 
     print(f"\n{'='*60}")
     print(f"TRAIN: {scene}/{variant.name} ({variant.iters} iters)")
+    print(f"  sh_degree={variant.sh_degree} eval={variant.eval} lambda_dssim={variant.lambda_dssim}")
+    print(f"  densify_until={variant.densify_until_iter} percent_dense={variant.percent_dense}")
+    if variant.start_checkpoint:
+        print(f"  resume_from={variant.start_checkpoint}")
     print(f"{'='*60}")
 
     t0 = time.time()
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    r = subprocess.run(cmd, cwd=str(gs_dir), capture_output=True, text=True)
     elapsed = time.time() - t0
 
     if r.returncode == 0:
@@ -95,7 +136,7 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
         return True
     else:
         print(f"  [FAIL] {scene}/{variant.name}: after {elapsed/60:.1f} min")
-        for line in (r.stdout + r.stderr).splitlines()[-10:]:
+        for line in (r.stdout + r.stderr).splitlines()[-15:]:
             print(f"    {line}")
         return False
 

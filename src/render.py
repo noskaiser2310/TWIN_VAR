@@ -85,7 +85,7 @@ for i, p in enumerate(test_poses):
 
     vp = MiniCam(resolution=(w, h), colmap_id=i, R=R_t, T=T_t,
                  FoVx=FoVx, FoVy=FoVy, depth_params=None,
-                 image=None, invdepthmap=None, depth_mask=None, depth_reliable=False)
+                 image=None, invdepthmap=None, depth_mask=None)
 
     with torch.no_grad():
         rendering = render(vp, gs, pipe, bg)["render"]

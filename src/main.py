@@ -1,27 +1,34 @@
 """VAR 2026 — Digital Twin BTS: Complete Local Pipeline
 ============================================================
-One-click orchestrator: validate → train → render → compact → tta → ensemble → post → package.
+One-click orchestrator: validate → train → render → eval → compact → tta → ensemble → post → package.
+
+Fully leverages ALL gaussian-splatting baseline features:
+  - eval mode, sh_degree=4, depth scheduling, densification tuning
+  - exposure compensation, anti-aliasing, sparse Adam, white/random BG
+  - competition metric evaluation (LPIPS+SSIM+PSNR → Score)
+  - Gaussian-level compact merge + test-time adaptation
+  - smart per-pixel ensemble + post-processing
 
 Usage:
     python main.py                                # all scenes, full pipeline
     python main.py --scenes bonsai                 # single scene
     python main.py --variant full_60k              # single variant
-    python main.py --all-variants                  # train ALL 9 variants
-    python main.py --compact --tta                 # Gaussian-level merge + TTA
+    python main.py --all-variants                  # train ALL 10 variants
+    python main.py --compact --tta                 # Gaussian merge + TTA
+    python main.py --eval-only                     # evaluate metrics only
     python main.py --train-only                    # train only
-    python main.py --render-only                   # render only
-    python main.py --skip-train                    # skip training
     python main.py --dry-run                       # print plan only
 
 Pipeline:
-    Phase 1: VALIDATE  → check data & 3DGS installation
-    Phase 2: TRAIN     → train 3DGS variants locally
-    Phase 3: RENDER    → render test poses from trained models
-    Phase 3.5: COMPACT → Gaussian-level merging (voxel-based)
-    Phase 3.6: TTA     → Test-time adaptation delta layer
-    Phase 4: ENSEMBLE  → smart per-pixel confidence blending
-    Phase 5: POST      → edge-aware sharpen + color match
-    Phase 6: PACKAGE   → create submission_round1.zip
+    Phase 1:   VALIDATE  → check data & 3DGS installation
+    Phase 2:   TRAIN     → train 3DGS variants (--eval, sh=4, densify tuning)
+    Phase 3:   RENDER    → render test poses from trained models
+    Phase 3.2: EVAL      → compute competition score (LPIPS+SSIM+PSNR)
+    Phase 3.5: COMPACT   → Gaussian-level merging (voxel-based)
+    Phase 3.6: TTA       → Test-time adaptation delta layer
+    Phase 4:   ENSEMBLE  → smart per-pixel confidence blending
+    Phase 5:   POST      → edge-aware sharpen + color match
+    Phase 6:   PACKAGE   → create submission_round1.zip
 """
 
 from __future__ import annotations
@@ -37,7 +44,6 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 from config import (
     DATA_DIR, GS_DIR, OUTPUT_DIR, SCENES, VARIANTS, SUBMISSION_NAME,
-    ENSEMBLE_VARIANTS,
 )
 
 
@@ -63,19 +69,17 @@ def validate(scenes: list[str]) -> bool:
         test_csv = d / "test" / "test_poses.csv"
         if not test_csv.exists():
             test_csv = d / "test_poses.csv"
-        if not test_csv.exists():
-            test_csv = d / "test_poses.csv"
         n_poses = 0
         if test_csv.exists():
             with open(test_csv) as f:
                 n_poses = len(list(csv.DictReader(f)))
 
         if missing:
-            print(f"  ❌ {scene}: missing {missing}")
+            print(f"  \u274c {scene}: missing {missing}")
             ok = False
         else:
             n_imgs = len(list((d / "train" / "images").glob("*")))
-            print(f"  ✅ {scene}: {n_imgs} imgs, {n_poses} test poses")
+            print(f"  \u2705 {scene}: {n_imgs} imgs, {n_poses} test poses")
     return ok
 
 
@@ -89,7 +93,7 @@ def train_variants(scenes: list[str], variant_names: list[str]) -> dict:
     for scene in scenes:
         results[scene] = {}
         for vname in variant_names:
-            print(f"\n  ── {scene}/{vname} ──")
+            print(f"\n  -- {scene}/{vname} --")
             r = subprocess.run(
                 [sys.executable, str(ROOT / "train.py"),
                  "--scene", scene, "--variant", vname, "--gs-dir", str(GS_DIR)],
@@ -109,7 +113,7 @@ def render_variants(scenes: list[str], variant_names: list[str]) -> dict:
     for scene in scenes:
         results[scene] = {}
         for vname in variant_names:
-            print(f"\n  ── {scene}/{vname} ──")
+            print(f"\n  -- {scene}/{vname} --")
             r = subprocess.run(
                 [sys.executable, str(ROOT / "render.py"),
                  "--scene", scene, "--variant", vname, "--gs-dir", str(GS_DIR)],
@@ -120,7 +124,20 @@ def render_variants(scenes: list[str], variant_names: list[str]) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════
-#  Phase 4-6: Ensemble → Post → Package
+#  Phase 3.2: Evaluate Competition Metrics
+# ═══════════════════════════════════════════════════════════════
+
+def eval_scenes(scenes: list[str]) -> None:
+    """Phase 3.2: Compute LPIPS/SSIM/PSNR + competition score."""
+    for scene in scenes:
+        subprocess.run(
+            [sys.executable, str(ROOT / "eval.py"), "--scene", scene, "--all-variants"],
+            capture_output=False,
+        )
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Phase 3.5-6: Compact → TTA → Ensemble → Post → Package
 # ═══════════════════════════════════════════════════════════════
 
 def compact_scenes(scenes: list[str]) -> None:
@@ -177,15 +194,17 @@ def main():
     p.add_argument("--scenes", nargs="*", default=None, help=f"Default: all {len(SCENES)} scenes")
     p.add_argument("--variant", default="full_60k", help="Single variant name")
     p.add_argument("--variants", default=None, help="Comma-separated variant names")
-    p.add_argument("--all-variants", action="store_true", help="Train ALL variants")
+    p.add_argument("--all-variants", action="store_true", help="Train ALL 10 variants")
     p.add_argument("--compact", action="store_true", help="Phase 3.5: Gaussian-level merging")
     p.add_argument("--tta", action="store_true", help="Phase 3.6: Test-time adaptation")
-    p.add_argument("--tta-model", default="compact", help="Model for TTA (default: compact)")
+    p.add_argument("--tta-model", default="compact", help="Model for TTA")
     p.add_argument("--train-only", action="store_true")
     p.add_argument("--render-only", action="store_true")
+    p.add_argument("--eval-only", action="store_true", help="Evaluate metrics only")
     p.add_argument("--ensemble-only", action="store_true")
     p.add_argument("--skip-train", action="store_true")
     p.add_argument("--skip-render", action="store_true")
+    p.add_argument("--skip-eval", action="store_true")
     p.add_argument("--skip-ensemble", action="store_true")
     p.add_argument("--skip-post", action="store_true")
     p.add_argument("--dry-run", action="store_true")
@@ -206,6 +225,11 @@ def main():
     print(f"  Scenes:   {', '.join(scenes)}")
     print(f"  Variants: {', '.join(variant_names)}")
     print(f"  Output:   {OUTPUT_DIR}")
+    print(f"  Pipeline: validate → train → render → eval → compact → tta → ensemble → post → package")
+    if args.compact:
+        print(f"  + Gaussian-level compact merge (Phase 3.5)")
+    if args.tta:
+        print(f"  + Test-time adaptation (Phase 3.6)")
 
     if args.dry_run:
         print(f"\n  [DRY RUN] Would execute but not run.")
@@ -215,12 +239,12 @@ def main():
 
     # Phase 1: Validate
     if not validate(scenes):
-        print("\n❌ Data validation failed. Fix issues first.")
+        print("\n\u274c Data validation failed. Fix issues first.")
         return
     print()
 
     # Phase 2: Train
-    if args.render_only or args.ensemble_only:
+    if args.render_only or args.ensemble_only or args.eval_only:
         pass
     elif args.skip_train:
         print("  [SKIP] Training")
@@ -232,11 +256,11 @@ def main():
 
     if args.train_only:
         elapsed = (time.time() - t0) / 60
-        print(f"\n✅ Training done in {elapsed:.0f} min")
+        print(f"\n\u2705 Training done in {elapsed:.0f} min")
         return
 
     # Phase 3: Render
-    if args.ensemble_only:
+    if args.ensemble_only or args.eval_only:
         pass
     elif args.skip_render:
         print("  [SKIP] Rendering")
@@ -248,7 +272,20 @@ def main():
 
     if args.render_only:
         elapsed = (time.time() - t0) / 60
-        print(f"\n✅ Render done in {elapsed:.0f} min")
+        print(f"\n\u2705 Render done in {elapsed:.0f} min")
+        return
+
+    # Phase 3.2: Evaluate Competition Metrics
+    if not args.skip_eval:
+        print(f"\n{'='*60}")
+        print(f"PHASE 3.2: EVALUATE COMPETITION METRICS")
+        print(f"  Formula: Score = 0.4*(1-LPIPS) + 0.3*SSIM + 0.3*PSNR_norm")
+        print(f"{'='*60}")
+        eval_scenes(scenes)
+
+    if args.eval_only:
+        elapsed = (time.time() - t0) / 60
+        print(f"\n\u2705 Evaluation done in {elapsed:.0f} min")
         return
 
     # Phase 3.5: Compact Merge (Gaussian-level)
@@ -274,7 +311,7 @@ def main():
 
     if args.ensemble_only:
         elapsed = (time.time() - t0) / 60
-        print(f"\n✅ Ensemble done in {elapsed:.0f} min")
+        print(f"\n\u2705 Ensemble done in {elapsed:.0f} min")
         return
 
     # Phase 5: Post-process
@@ -292,8 +329,8 @@ def main():
 
     elapsed = (time.time() - t0) / 60
     print(f"\n{'='*60}")
-    print(f"🏆 PIPELINE COMPLETE! ({elapsed:.0f} min)")
-    print(f"📦 {zip_path}")
+    print(f"\U0001f3c6 PIPELINE COMPLETE! ({elapsed:.0f} min)")
+    print(f"\U0001f4e6 {zip_path}")
     print(f"{'='*60}")
 
 

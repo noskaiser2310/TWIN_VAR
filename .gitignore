@@ -27,7 +27,7 @@ kaggle_*.json
 .env
 .venv/
 venv/
-
+temp/
 # IDE
 .vscode/
 .idea/
