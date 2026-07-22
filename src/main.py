@@ -26,6 +26,7 @@ Pipeline:
     Phase 3.2: EVAL      → compute competition score (LPIPS+SSIM+PSNR)
     Phase 3.5: COMPACT   → Gaussian-level merging (voxel-based)
     Phase 3.6: TTA       → Test-time adaptation delta layer
+    Phase 3.7: PERCEPTUAL → LPIPS/DINO-v2 fine-tuning for LPIPS optimization (40% of score)
     Phase 4:   ENSEMBLE  → smart per-pixel confidence blending
     Phase 5:   POST      → edge-aware sharpen + color match
     Phase 6:   PACKAGE   → create submission_round1.zip
@@ -140,6 +141,16 @@ def eval_scenes(scenes: list[str]) -> None:
 #  Phase 3.5-6: Compact → TTA → Ensemble → Post → Package
 # ═══════════════════════════════════════════════════════════════
 
+def perceptual_scenes(scenes: list[str], variant: str = "compact") -> None:
+    """Phase 3.7: LPIPS/DINO-v2 perceptual fine-tuning."""
+    for scene in scenes:
+        subprocess.run(
+            [sys.executable, str(ROOT / "perceptual_finetune.py"),
+             "--scene", scene, "--variant", variant],
+            capture_output=False,
+        )
+
+
 def compact_scenes(scenes: list[str]) -> None:
     """Phase 3.5: Gaussian-level primitive merging."""
     for scene in scenes:
@@ -198,6 +209,8 @@ def main():
     p.add_argument("--compact", action="store_true", help="Phase 3.5: Gaussian-level merging")
     p.add_argument("--tta", action="store_true", help="Phase 3.6: Test-time adaptation")
     p.add_argument("--tta-model", default="compact", help="Model for TTA")
+    p.add_argument("--perceptual", action="store_true", help="Phase 3.7: LPIPS/DINO-v2 fine-tuning")
+    p.add_argument("--perceptual-model", default=None, help="Model variant for perceptual fine-tuning (default: compact if --compact else full_60k)")
     p.add_argument("--train-only", action="store_true")
     p.add_argument("--render-only", action="store_true")
     p.add_argument("--eval-only", action="store_true", help="Evaluate metrics only")
@@ -301,6 +314,25 @@ def main():
         print(f"PHASE 3.6: TEST-TIME ADAPTATION")
         print(f"{'='*60}")
         tta_scenes(scenes, args.tta_model)
+
+    # Phase 3.7: Perceptual Fine-Tuning (LPIPS/DINOv2)
+    if args.perceptual:
+        print(f"\n{'='*60}")
+        print(f"PHASE 3.7: PERCEPTUAL FINE-TUNE (LPIPS = 40% SCORE)")
+        print(f"  Loss: LPIPS λ=1.0 + DINO λ=0.5 + L1 λ=0.2")
+        print(f"  Goal: Directly optimize the LPIPS component of competition score")
+        print(f"{'='*60}")
+        # Determine which model to fine-tune:
+        # --perceptual-model flag > --compact/--tta model > defaults
+        perceptual_model = args.perceptual_model
+        if perceptual_model is None:
+            if args.tta:
+                perceptual_model = args.tta_model
+            elif args.compact:
+                perceptual_model = "compact"
+            else:
+                perceptual_model = args.variant
+        perceptual_scenes(scenes, perceptual_model)
 
     # Phase 4: Ensemble
     if not args.skip_ensemble:
