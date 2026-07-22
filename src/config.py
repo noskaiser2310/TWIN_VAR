@@ -14,7 +14,9 @@ Requirements: Python 3.10+, CUDA GPU (16GB+ VRAM), 3DGS submodules built
 
 from __future__ import annotations
 
+import copy
 import os
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -157,7 +159,70 @@ class Variant:
         return a
 
 
-# ── 9 variants tối ưu cho drone BTS ──────────────────────────
+# ── Per-scene tuning defaults ────────────────────────────
+# These defaults are merged into Variant at train time via get_scene_variant().
+# Strategy: indoor (bonsai/chair) = less densification, white_bg, lower SSIM weight.
+#          outdoor BTS (HCM0xxx) = aggressive densification for thin antennas,
+#          strong depth regularization for textureless walls, high SSIM weight.
+
+_INDOOR_DEFAULTS: dict = {
+    "white_bg": True,
+    "lambda_dssim": 0.2,                 # SSIM matters less for synthetic textures
+    "percent_dense": 0.01,               # Small objects → fewer Gaussians
+    "densify_until_iter": 15_000,        # Simpler geometry → less densification
+    "densify_grad_threshold": 0.0002,    # Standard threshold
+    "depth_l1_weight_init": 1.0,         # Default depth weight
+    "depth_l1_weight_final": 0.05,       # Default
+    "sh_degree": 3,                      # Indoor objects have limited view-dependence
+}
+
+_OUTDOOR_BTS_DEFAULTS: dict = {
+    "white_bg": False,                   # Sky = black background
+    "lambda_dssim": 0.3,                 # ↑ Perceptual quality for thin BTS antennas
+    "percent_dense": 0.03,               # ↑↑ More Gaussians for thin structures
+    "densify_until_iter": 25_000,        # ↑ Longer densification for complex towers
+    "densify_grad_threshold": 0.0001,    # ↓↓ More aggressive densification
+    "depth_l1_weight_init": 2.0,         # ↑↑ Strong depth for textureless walls
+    "depth_l1_weight_final": 0.1,        # ↑ Keep depth influence longer
+    "sh_degree": 4,                      # Drone photos have view-dependent lighting
+}
+
+PER_SCENE_CONFIG: dict[str, dict] = {
+    "bonsai": _INDOOR_DEFAULTS.copy(),
+    "chair": _INDOOR_DEFAULTS.copy(),
+    "HCM0421": _OUTDOOR_BTS_DEFAULTS.copy(),
+    "HCM0539": _OUTDOOR_BTS_DEFAULTS.copy(),
+    "HCM0540": _OUTDOOR_BTS_DEFAULTS.copy(),
+    "HCM0644": _OUTDOOR_BTS_DEFAULTS.copy(),
+    "HCM0674": _OUTDOOR_BTS_DEFAULTS.copy(),
+}
+
+
+def get_scene_variant(variant: Variant, scene: str) -> Variant:
+    """Create a scene-optimized copy of a Variant.
+
+    Applies PER_SCENE_CONFIG overrides for the given scene on top of
+    the variant's base settings. Returns a NEW Variant (does not mutate original).
+
+    Usage:
+        v = get_scene_variant(VARIANTS[0], "HCM0421")
+        v.args_list(...)  # now has outdoor BTS densify params
+    """
+    overrides = PER_SCENE_CONFIG.get(scene, {})
+    if not overrides:
+        return variant  # No overrides → return as-is
+
+    # Deep-copy to avoid mutating the original Variant (including list fields like checkpoint_iterations)
+    v = copy.deepcopy(variant)
+    for key, value in overrides.items():
+        if hasattr(v, key):
+            setattr(v, key, value)
+        else:
+            warnings.warn(f"Unknown per-scene override key '{key}' for scene '{scene}' — ignored")
+    return v
+
+
+# ── 10 variants tối ưu cho drone BTS ─────────────────────────
 
 VARIANTS: list[Variant] = [
     # Quick test

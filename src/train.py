@@ -24,7 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, GS_DIR, OUTPUT_DIR, VARIANTS, Variant
+from config import DATA_DIR, GS_DIR, OUTPUT_DIR, VARIANTS, Variant, get_scene_variant
 
 
 def prepare_scene(scene: str, work_dir: Path) -> Path:
@@ -121,7 +121,8 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
 
     print(f"\n{'='*60}")
     print(f"TRAIN: {scene}/{variant.name} ({variant.iters} iters)")
-    print(f"  sh_degree={variant.sh_degree} eval={variant.eval} lambda_dssim={variant.lambda_dssim}")
+    print(f"  sh_degree={variant.sh_degree} eval_mode={variant.eval_mode} lambda_dssim={variant.lambda_dssim}")
+    print(f"  white_bg={variant.white_bg} depth_l1_weight_init={variant.depth_l1_weight_init}")
     print(f"  densify_until={variant.densify_until_iter} percent_dense={variant.percent_dense}")
     if variant.start_checkpoint:
         print(f"  resume_from={variant.start_checkpoint}")
@@ -157,6 +158,9 @@ if __name__ == "__main__":
     variant = vmap[args.variant]
     if args.iters:
         variant.iters = args.iters
+
+    # Apply per-scene tuning overrides (indoor vs outdoor BTS)
+    variant = get_scene_variant(variant, args.scene)
 
     success = train(args.scene, variant, Path(args.gs_dir) if args.gs_dir else None)
     sys.exit(0 if success else 1)

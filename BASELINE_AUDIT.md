@@ -2,7 +2,7 @@
 
 > **Audited:** 2026-07-22  
 > **Baseline:** `gaussian-splatting/` (Inria GraphDeco, SIGGRAPH 2023)  
-> **Pipeline:** `src/` v2.1.0
+> **Pipeline:** `src/` v2.2.0
 
 ---
 
@@ -126,6 +126,32 @@ Once installed, `train.py` auto-detects and uses it — **no code changes needed
 ---
 
 ## 6. Tuning Guide
+
+### Per-Scene Tuning (v2.2.0)
+
+The pipeline now supports **automatic per-scene parameter overrides** via `PER_SCENE_CONFIG` in `config.py`. No manual intervention needed — `train.py` calls `get_scene_variant()` automatically.
+
+#### Indoor Scenes (bonsai, chair)
+| Param | Override | Rationale |
+|-------|----------|-----------|
+| `white_bg` | **True** | Indoor scenes have white backgrounds |
+| `lambda_dssim` | **0.2** | Synthetic textures, SSIM matters less |
+| `percent_dense` | **0.01** | Small objects need fewer Gaussians |
+| `densify_until_iter` | **15,000** | Simpler geometry |
+| `densify_grad_threshold` | **0.0002** | Standard threshold |
+| `sh_degree` | **3** | Limited view-dependence |
+
+#### Outdoor BTS Scenes (HCM0421–HCM0674)
+| Param | Override | Rationale |
+|-------|----------|-----------|
+| `white_bg` | **False** | Sky = black background |
+| `lambda_dssim` | **0.3** | ↑ Perceptual quality for thin antennas |
+| `percent_dense` | **0.03** | ↑↑ More Gaussians for thin structures |
+| `densify_until_iter` | **25,000** | ↑ Longer densification |
+| `densify_grad_threshold` | **0.0001** | ↓↓ Aggressive densification |
+| `depth_l1_weight_init` | **2.0** | ↑↑ Strong depth for textureless walls |
+| `depth_l1_weight_final` | **0.1** | ↑ Keep depth influence longer |
+| `sh_degree` | **4** | Drone view-dependent lighting |
 
 ### Quick Tuning
 
