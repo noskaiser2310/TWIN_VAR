@@ -10,11 +10,6 @@ build/
 data/*
 !data/README.txt
 
-# Gaussian Splatting — original (kept for reference)
-gaussian-splatting/SIBR_viewers/
-gaussian-splatting/submodules/
-gaussian-splatting/output/
-
 # _3dgs build artifacts (source code is tracked, build outputs are not)
 src/_3dgs/**/build/
 src/_3dgs/**/dist/
@@ -36,6 +31,11 @@ kaggle_*.json
 .venv/
 venv/
 temp/
+
+# Archived benchmark data
+*.zip
+*.tar.gz
+VAI_NVS_DATA_ROUND2.zip
 # IDE
 .vscode/
 .idea/

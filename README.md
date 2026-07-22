@@ -2,7 +2,8 @@
 
 > **Cuộc thi:** VAI Race AI 2026 — Đề 1  
 > **Bài toán:** Novel View Synthesis — Digital Twin cho Trạm BTS  
-> **Strategy:** [STRATEGY_TOP1.md](STRATEGY_TOP1.md)
+> **Strategy:** [docs/STRATEGY_TOP1.md](docs/STRATEGY_TOP1.md)
+> **Setup:** [docs/SETUP.md](docs/SETUP.md)
 
 ---
 
@@ -29,7 +30,13 @@ python src/main.py --dry-run
 ```
 De_1/
 ├── README.md                     # This file
-├── STRATEGY_TOP1.md              # Detailed strategy doc
+├── docs/                         # Documentation
+│   ├── STRATEGY_TOP1.md
+│   ├── IMPROVEMENTS.md
+│   ├── ARCHITECTURE.md
+│   ├── BASELINE_AUDIT.md
+│   ├── SETUP.md
+│   └── CHANGELOG.md
 ├── de.md                         # Competition problem statement
 ├── pyproject.toml                # Package metadata
 ├── .gitignore
