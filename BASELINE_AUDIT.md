@@ -88,27 +88,33 @@ The `gaussian-splatting` codebase provides **28 configurable parameters** across
 
 | Submodule | Status | Impact |
 |-----------|--------|--------|
-| `diff-gaussian-rasterization` (dr_aa branch) | Required | Anti-aliasing support |
-| `simple-knn` | Required | Point cloud initialization |
+| **`diff-gaussian-rasterization`** (dr_aa branch) | ✅ **Initialized** — needs `pip install` | **REQUIRED:** CUDA rasterizer with anti-aliasing support |
+| **`simple-knn`** | ✅ **Initialized** — needs `pip install` | **REQUIRED:** Point cloud initialization |
 | **`fused-ssim`** | ✅ **Initialized** — needs `pip install` | ~2x faster SSIM training (auto-detected by train.py) |
 | `SIBR_viewers` | Not needed | Interactive viewer only |
 
-### 🔧 Build fused-ssim (on GPU machine)
+### 🔧 Build ALL submodules (on GPU machine)
 
 ```powershell
 cd gaussian-splatting
 
-# Step 1: Init submodule (already done)
+# Step 1: Init submodules (already done)
+git submodule update --init submodules/simple-knn
+git submodule update --init submodules/diff-gaussian-rasterization
 git submodule update --init submodules/fused-ssim
 
-# Step 2: Install (requires PyTorch + CUDA toolkit)
+# Step 2: Install (requires PyTorch 2.1+ + CUDA 11.8+ toolkit)
+pip install -e submodules/simple-knn
+pip install -e submodules/diff-gaussian-rasterization
 pip install -e submodules/fused-ssim
 
 # Step 3: Verify
-python -c "from fused_ssim import fused_ssim; print('✅ fused-ssim ready')"
+python -c "from simple_knn._C import distCUDA2; print('✅ simple-knn OK')"
+python -c "from diff_gaussian_rasterization import _C; print('✅ diff-gaussian OK')"
+python -c "from fused_ssim import fused_ssim; print('✅ fused-ssim OK')"
 ```
 
-Once installed, `train.py` auto-detects and uses it — **no code changes needed**.
+> **Note:** `diff-gaussian-rasterization` uses the `dr_aa` branch which includes anti-aliasing support (`--antialiasing` flag).
 
 ---
 
