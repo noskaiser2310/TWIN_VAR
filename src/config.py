@@ -56,6 +56,7 @@ class Variant:
     data_device: str = "cuda"            # "cpu" saves VRAM on T4
 
     # ── Features ─────────────────────────────────────────
+    densify_method: str = "abs"          # "abs" (AbsGS 2024, +0.5-1dB) or "orig" (vanilla)
     depth: bool = False                  # -d <depths_dir>
     exposure: bool = False               # --exposure_lr_* --train_test_exp
     antialias: bool = False              # --antialiasing (PipelineParams)
@@ -130,6 +131,8 @@ class Variant:
             ])
         if self.antialias:
             a.append("--antialiasing")
+        if self.densify_method != "abs":
+            a.extend(["--densify_method", self.densify_method])
         if self.sparse_adam:
             a.extend(["--optimizer_type", "sparse_adam"])
         if self.checkpoint_iterations:

@@ -47,9 +47,10 @@ class GaussianModel:
         self.rotation_activation = torch.nn.functional.normalize
 
 
-    def __init__(self, sh_degree, optimizer_type="default"):
+    def __init__(self, sh_degree, optimizer_type="default", densify_method="abs"):
         self.active_sh_degree = 0
         self.optimizer_type = optimizer_type
+        self.densify_method = densify_method      # "abs" (AbsGS) or "orig" (vanilla 3DGS)
         self.max_sh_degree = sh_degree  
         self._xyz = torch.empty(0)
         self._features_dc = torch.empty(0)
@@ -469,5 +470,14 @@ class GaussianModel:
         torch.cuda.empty_cache()
 
     def add_densification_stats(self, viewspace_point_tensor, update_filter):
-        self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter,:2], dim=-1, keepdim=True)
+        # AbsGS (2024): sum of absolute gradients — better density control than L2 norm
+        # Reference: "AbsGS: Recovering Fine Details in 3D Gaussian Splatting" (Ye et al., ECCV 2024)
+        if self.densify_method == "abs":
+            self.xyz_gradient_accum[update_filter] += torch.abs(
+                viewspace_point_tensor.grad[update_filter, :2]
+            ).sum(dim=-1, keepdim=True)
+        else:
+            self.xyz_gradient_accum[update_filter] += torch.norm(
+                viewspace_point_tensor.grad[update_filter, :2], dim=-1, keepdim=True
+            )
         self.denom[update_filter] += 1
