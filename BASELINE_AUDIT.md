@@ -2,7 +2,7 @@
 
 > **Audited:** 2026-07-22  
 > **Baseline:** `gaussian-splatting/` (Inria GraphDeco, SIGGRAPH 2023)  
-> **Pipeline:** `src/` v2.0.0
+> **Pipeline:** `src/` v2.1.0
 
 ---
 
@@ -90,8 +90,25 @@ The `gaussian-splatting` codebase provides **28 configurable parameters** across
 |-----------|--------|--------|
 | `diff-gaussian-rasterization` (dr_aa branch) | Required | Anti-aliasing support |
 | `simple-knn` | Required | Point cloud initialization |
-| `fused-ssim` | Optional (auto) | ~2x faster SSIM training |
+| **`fused-ssim`** | ✅ **Initialized** — needs `pip install` | ~2x faster SSIM training (auto-detected by train.py) |
 | `SIBR_viewers` | Not needed | Interactive viewer only |
+
+### 🔧 Build fused-ssim (on GPU machine)
+
+```powershell
+cd gaussian-splatting
+
+# Step 1: Init submodule (already done)
+git submodule update --init submodules/fused-ssim
+
+# Step 2: Install (requires PyTorch + CUDA toolkit)
+pip install -e submodules/fused-ssim
+
+# Step 3: Verify
+python -c "from fused_ssim import fused_ssim; print('✅ fused-ssim ready')"
+```
+
+Once installed, `train.py` auto-detects and uses it — **no code changes needed**.
 
 ---
 
