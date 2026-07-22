@@ -1,7 +1,8 @@
 # 🏗️ ARCHITECTURE.md — VAR 2026 Digital Twin BTS Pipeline
 
-> **Version:** 2.0.0  
+> **Version:** 2.4.0  
 > **Last updated:** 2026-07-22
+> **Architecture:** Self-contained — all 3DGS code inside `src/_3dgs/`
 
 ---
 
@@ -27,14 +28,15 @@
 |--------|------|-------|
 | `config.py` | All config: paths, 10 variants, ensemble, compact, TTA, eval | — |
 | `main.py` | One-click orchestrator | All modules |
-| `train.py` | Train 1 3DGS variant | `gaussian-splatting/train.py` |
-| `render.py` | Render test poses | `gaussian-splatting/render.py` (via generated script) |
-| `eval.py` | Compute LPIPS/SSIM/PSNR + competition score | `gaussian-splatting/metrics.py` |
+| `train.py` | Train 1 3DGS variant | `_3dgs/train.py` (self-contained) |
+| `render.py` | Render test poses | `_3dgs/` modules (via generated script) |
+| `eval.py` | Compute LPIPS/SSIM/PSNR + competition score | `_3dgs/metrics.py` (self-contained) |
 | `compact.py` | Gaussian-level voxel-based merging | plyfile |
-| `tta.py` | Test-time adaptation delta layer | PyTorch |
+| `tta.py` | Test-time adaptation delta layer | `_3dgs/` modules (via generated script) |
 | `ensemble.py` | 5-signal per-pixel confidence blending | numpy, scipy, cv2 |
 | `postprocess.py` | Edge-aware sharpen + color match | cv2, numpy |
 | `package.py` | Create submission_round1.zip | zipfile |
+| `_3dgs/` | **3D Gaussian Splatting source** (self-contained) | arguments, scene, gaussian_renderer, utils |
 
 ---
 
@@ -138,9 +140,31 @@ Rendered PNG → Edge-aware Unsharp Mask → Color Distribution Matching → Fin
 
 ## 9. Security & Robustness
 
+- ✅ **Self-contained:** All 3DGS code in `src/_3dgs/` — no external `gaussian-splatting/` dependency
 - ✅ **No shell injection:** All subprocess calls use `list[str]` args (no `shell=True`)
 - ✅ **Dry-run mode:** `--dry-run` prints plan without executing
 - ✅ **Skip-if-exists:** render.py skips if PNGs already rendered
 - ✅ **Fallback paths:** Multiple CSV/COLMAP location checks
 - ✅ **Timeout:** Render scripts have 3600s timeout
 - ✅ **Error isolation:** Per-variant failure doesn't kill pipeline
+
+---
+
+## 10. Self-Contained Architecture (v2.4.0)
+
+```
+src/
+├── _3dgs/                         ← 3DGS source (copied, self-contained)
+│   ├── train.py, render.py, metrics.py
+│   ├── arguments/, scene/, gaussian_renderer/, utils/, lpipsPyTorch/
+│   └── submodules/                ← C++ extensions (build with pip install -e)
+│       ├── simple-knn/
+│       ├── diff-gaussian-rasterization/
+│       └── fused-ssim/
+├── config.py, main.py, train.py   ← Our pipeline (wraps _3dgs/)
+├── render.py, eval.py, compact.py
+├── tta.py, ensemble.py, postprocess.py, package.py
+└── ...
+
+gaussian-splatting/                ← Original (kept for reference, not required)
+```

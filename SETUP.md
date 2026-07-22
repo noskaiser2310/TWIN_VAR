@@ -1,6 +1,6 @@
 # 🚀 SETUP.md — VAR 2026 Digital Twin BTS Pipeline
 
-> **Version:** 2.3.0  
+> **Version:** 2.4.0  
 > **Last updated:** 2026-07-22  
 > **Target OS:** Linux (Ubuntu 22.04+) / Windows (PowerShell)  
 > **GPU:** NVIDIA RTX A4000 20GB / Tesla T4 16GB  
@@ -66,19 +66,14 @@ ls data/
 ## 3. Build 3DGS Submodules
 
 ```bash
-cd gaussian-splatting
+cd src/_3dgs
 
-# Initialize all submodules (already cloned, just need init)
-git submodule update --init submodules/simple-knn
-git submodule update --init submodules/diff-gaussian-rasterization
-git submodule update --init submodules/fused-ssim
-
-# Build & install (requires CUDA toolkit + PyTorch)
+# Build & install C++ extensions (requires CUDA toolkit + PyTorch)
 pip install -e submodules/simple-knn
 pip install -e submodules/diff-gaussian-rasterization
 pip install -e submodules/fused-ssim
 
-cd ..
+cd ../..
 ```
 
 > **Note:** `diff-gaussian-rasterization` uses the `dr_aa` branch which includes `--antialiasing` support.
@@ -126,7 +121,7 @@ python -c "from config import DATA_DIR, GS_DIR, SCENES, VARIANTS; print(f'✅ {l
 cd ..
 
 # 2. Check 3DGS train.py is accessible
-python -c "import sys; sys.path.insert(0, 'gaussian-splatting'); from arguments import ModelParams; print('✅ 3DGS OK')"
+python -c "import sys; sys.path.insert(0, 'src/_3dgs'); from arguments import ModelParams; print('3DGS OK')"
 
 # 3. Dry-run the pipeline
 python src/main.py --dry-run
@@ -276,10 +271,10 @@ cd ..
 
 ```bash
 # Re-install diff-gaussian-rasterization
-cd gaussian-splatting
+cd src/_3dgs
 pip uninstall diff_gaussian_rasterization -y
 pip install -e submodules/diff-gaussian-rasterization
-cd ..
+cd ../..
 ```
 
 ### Permission denied (Linux)

@@ -10,10 +10,18 @@ build/
 data/*
 !data/README.txt
 
-# Gaussian Splatting submodules
+# Gaussian Splatting — original (kept for reference)
 gaussian-splatting/SIBR_viewers/
 gaussian-splatting/submodules/
 gaussian-splatting/output/
+
+# _3dgs build artifacts (source code is tracked, build outputs are not)
+src/_3dgs/**/build/
+src/_3dgs/**/dist/
+src/_3dgs/**/*.egg-info/
+src/_3dgs/**/*.so
+src/_3dgs/**/*.pyd
+src/_3dgs/output/
 
 # Output
 output/

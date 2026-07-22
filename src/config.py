@@ -25,7 +25,7 @@ from pathlib import Path
 # ═══════════════════════════════════════════════════════════════
 
 ROOT = Path(__file__).resolve().parent                          # src/
-GS_DIR = ROOT.parent / "gaussian-splatting"                     # 3DGS code
+GS_DIR = ROOT / "_3dgs"                                         # 3DGS code (self-contained copy)
 DATA_DIR = ROOT.parent / "data"                                 # scene data
 OUTPUT_DIR = ROOT / "output"                                    # all outputs
 SUBMISSION_DIR = ROOT / "submissions"                           # final ZIPs

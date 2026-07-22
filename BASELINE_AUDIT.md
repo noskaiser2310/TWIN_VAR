@@ -2,7 +2,7 @@
 
 > **Audited:** 2026-07-22  
 > **Baseline:** `gaussian-splatting/` (Inria GraphDeco, SIGGRAPH 2023)  
-> **Pipeline:** `src/` v2.2.0
+> **Pipeline:** `src/` v2.4.0 (self-contained `src/_3dgs/`)
 
 ---
 
@@ -96,7 +96,7 @@ The `gaussian-splatting` codebase provides **28 configurable parameters** across
 ### 🔧 Build ALL submodules (on GPU machine)
 
 ```powershell
-cd gaussian-splatting
+cd src/_3dgs
 
 # Step 1: Init submodules (already done)
 git submodule update --init submodules/simple-knn

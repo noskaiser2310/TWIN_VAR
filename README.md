@@ -39,9 +39,11 @@ De_1/
 │   ├── chair/
 │   └── ...
 │
-├── gaussian-splatting/           # 3DGS codebase
+├── gaussian-splatting/           # Reference (optional)
 │
-├── src/                          # ★ Pipeline source code
+├── src/                          # ★ Pipeline + 3DGS (self-contained)
+│   ├── _3dgs/                    # 3DGS source (train.py, render.py, ...)
+│   │   └── submodules/           # C++ extensions
 │   ├── __init__.py
 │   ├── config.py                 # Paths, 9 variants, ensemble, compact, TTA
 │   ├── main.py                   # One-click orchestrator
