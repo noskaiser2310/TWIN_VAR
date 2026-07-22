@@ -1,0 +1,32 @@
+# VAR 2026 Digital Twin BTS — Top 1 Strategy
+# Core dependencies
+
+# Gaussian Splatting core
+torch>=2.1.0
+torchvision>=0.16.0
+numpy>=1.24.0
+plyfile>=1.0.0
+tqdm>=4.66.0
+opencv-python-headless>=4.8.0
+scipy>=1.10.0
+
+# Depth estimation
+# Depth-Anything-V2 is cloned from GitHub separately
+
+# Segmentation (sky mask)
+# SAM2 is cloned from GitHub separately
+
+# Image processing & post-processing
+Pillow>=9.0.0
+matplotlib>=3.7.0
+
+# Utilities
+PyYAML>=6.0
+rich>=13.0.0
+python-dotenv>=1.0.0
+
+# Kaggle CLI
+kaggle>=1.6.0
+
+# Optional: Faster CSV parsing
+# pandas>=2.0.0
