@@ -160,41 +160,74 @@ class Variant:
 
 
 # ── Per-scene tuning defaults ────────────────────────────
-# These defaults are merged into Variant at train time via get_scene_variant().
-# Strategy: indoor (bonsai/chair) = less densification, white_bg, lower SSIM weight.
-#          outdoor BTS (HCM0xxx) = aggressive densification for thin antennas,
-#          strong depth regularization for textureless walls, high SSIM weight.
+# Merged into Variant at train time via get_scene_variant().
+# Strategy based on COLMAP point cloud density (points3D.bin size):
+#   SPARSE scenes (low COLMAP density) → aggressive densification + strong depth
+#   DENSE scenes (high COLMAP density) → lighter densification, trust COLMAP more
+#   INDOOR scenes (bonsai, chair)       → white_bg, low SSIM, minimal densification
 
+# Indoor — synthetic objects, white backgrounds
 _INDOOR_DEFAULTS: dict = {
     "white_bg": True,
-    "lambda_dssim": 0.2,                 # SSIM matters less for synthetic textures
-    "percent_dense": 0.01,               # Small objects → fewer Gaussians
-    "densify_until_iter": 15_000,        # Simpler geometry → less densification
-    "densify_grad_threshold": 0.0002,    # Standard threshold
-    "depth_l1_weight_init": 1.0,         # Default depth weight
-    "depth_l1_weight_final": 0.05,       # Default
-    "sh_degree": 3,                      # Indoor objects have limited view-dependence
+    "lambda_dssim": 0.2,
+    "percent_dense": 0.01,
+    "densify_until_iter": 15_000,
+    "densify_grad_threshold": 0.0002,
+    "depth_l1_weight_init": 1.0,
+    "depth_l1_weight_final": 0.05,
+    "sh_degree": 3,
 }
 
-_OUTDOOR_BTS_DEFAULTS: dict = {
-    "white_bg": False,                   # Sky = black background
-    "lambda_dssim": 0.3,                 # ↑ Perceptual quality for thin BTS antennas
-    "percent_dense": 0.03,               # ↑↑ More Gaussians for thin structures
-    "densify_until_iter": 25_000,        # ↑ Longer densification for complex towers
-    "densify_grad_threshold": 0.0001,    # ↓↓ More aggressive densification
-    "depth_l1_weight_init": 2.0,         # ↑↑ Strong depth for textureless walls
-    "depth_l1_weight_final": 0.1,        # ↑ Keep depth influence longer
-    "sh_degree": 4,                      # Drone photos have view-dependent lighting
+# Chair — more complex geometry than bonsai (8.9MB COLMAP, 59 test poses, 205 imgs)
+_CHAIR_DEFAULTS: dict = {
+    "white_bg": True,
+    "lambda_dssim": 0.25,                # Slightly higher SSIM for chair details
+    "percent_dense": 0.015,              # ↑ Mild increase (denser COLMAP than bonsai)
+    "densify_until_iter": 18_000,        # ↑ Slightly longer
+    "densify_grad_threshold": 0.00018,   # ↓ Mildly lower
+    "depth_l1_weight_init": 1.0,
+    "depth_l1_weight_final": 0.05,
+    "sh_degree": 3,
+}
+
+# Outdoor BTS with SPARSE COLMAP (HCM0421: 16.5MB, HCM0674: 15.2MB)
+# → COLMAP struggles → compensate with stronger densification + depth.
+#   Values balanced to avoid OOM on T4 16GB (240 imgs × sparse Gaussians).
+_OUTDOOR_SPARSE_DEFAULTS: dict = {
+    "white_bg": False,
+    "lambda_dssim": 0.3,
+    "percent_dense": 0.035,              # ↑↑ Very aggressive (3.5x default, balanced for T4)
+    "densify_until_iter": 28_000,        # ↑↑ Extended (caps below 30k variants' iters)
+    "densify_grad_threshold": 0.0001,    # ↓↓ Aggressive (not extreme: avoids OOM)
+    "depth_l1_weight_init": 2.0,         # ↑↑ Strong depth (balanced: noisy drone depth)
+    "depth_l1_weight_final": 0.12,       # ↑↑ Keep depth active
+    "sh_degree": 4,
+}
+
+# Outdoor BTS with DENSE COLMAP (HCM0539: 22.1MB, HCM0644: 21.4MB, HCM0540: 20.2MB)
+# → COLMAP already captured good structure → moderate tuning
+_OUTDOOR_DENSE_DEFAULTS: dict = {
+    "white_bg": False,
+    "lambda_dssim": 0.3,
+    "percent_dense": 0.025,              # ↑ Moderate (COLMAP already dense)
+    "densify_until_iter": 25_000,        # Standard outdoor
+    "densify_grad_threshold": 0.00012,   # ↓ Moderate
+    "depth_l1_weight_init": 1.8,         # ↑ Moderate depth weight
+    "depth_l1_weight_final": 0.08,       # ↑ Moderate
+    "sh_degree": 4,
 }
 
 PER_SCENE_CONFIG: dict[str, dict] = {
-    "bonsai": _INDOOR_DEFAULTS.copy(),
-    "chair": _INDOOR_DEFAULTS.copy(),
-    "HCM0421": _OUTDOOR_BTS_DEFAULTS.copy(),
-    "HCM0539": _OUTDOOR_BTS_DEFAULTS.copy(),
-    "HCM0540": _OUTDOOR_BTS_DEFAULTS.copy(),
-    "HCM0644": _OUTDOOR_BTS_DEFAULTS.copy(),
-    "HCM0674": _OUTDOOR_BTS_DEFAULTS.copy(),
+    # ── Indoor ──
+    "bonsai": _INDOOR_DEFAULTS.copy(),          # 248 imgs, 29 test, 6.1MB COLMAP
+    "chair":  _CHAIR_DEFAULTS.copy(),           # 205 imgs, 59 test, 8.9MB COLMAP
+    # ── Outdoor Sparse COLMAP (compensate aggressively) ──
+    "HCM0421": _OUTDOOR_SPARSE_DEFAULTS.copy(), # 240 imgs, 16.5 MB
+    "HCM0674": _OUTDOOR_SPARSE_DEFAULTS.copy(), # 240 imgs, 15.2 MB (sparsest)
+    # ── Outdoor Dense COLMAP (moderate tuning) ──
+    "HCM0539": _OUTDOOR_DENSE_DEFAULTS.copy(),  # 240 imgs, 22.1 MB (densest)
+    "HCM0540": _OUTDOOR_DENSE_DEFAULTS.copy(),  # 240 imgs, 20.2 MB
+    "HCM0644": _OUTDOOR_DENSE_DEFAULTS.copy(),  # 240 imgs, 21.4 MB
 }
 
 

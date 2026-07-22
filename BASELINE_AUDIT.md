@@ -131,13 +131,13 @@ python -c "from fused_ssim import fused_ssim; print('✅ fused-ssim OK')"
 
 ---
 
-## 6. Tuning Guide
-
-### Per-Scene Tuning (v2.2.0)
+## 6. Tuning Guide### Per-Scene Tuning (v2.3.0) — 3-Tier Strategy Based on COLMAP Density
 
 The pipeline now supports **automatic per-scene parameter overrides** via `PER_SCENE_CONFIG` in `config.py`. No manual intervention needed — `train.py` calls `get_scene_variant()` automatically.
 
-#### Indoor Scenes (bonsai, chair)
+Strategy uses COLMAP `points3D.bin` file size as a proxy for scene complexity:
+
+#### Tier 1: Indoor (bonsai 248 imgs, chair 205 imgs)
 | Param | Override | Rationale |
 |-------|----------|-----------|
 | `white_bg` | **True** | Indoor scenes have white backgrounds |
@@ -147,17 +147,25 @@ The pipeline now supports **automatic per-scene parameter overrides** via `PER_S
 | `densify_grad_threshold` | **0.0002** | Standard threshold |
 | `sh_degree` | **3** | Limited view-dependence |
 
-#### Outdoor BTS Scenes (HCM0421–HCM0674)
+#### Tier 2: Outdoor Sparse COLMAP (HCM0421 16.5MB, HCM0674 15.2MB)
+COLMAP struggles with textureless BTS walls → compensate aggressively.
 | Param | Override | Rationale |
 |-------|----------|-----------|
-| `white_bg` | **False** | Sky = black background |
-| `lambda_dssim` | **0.3** | ↑ Perceptual quality for thin antennas |
-| `percent_dense` | **0.03** | ↑↑ More Gaussians for thin structures |
-| `densify_until_iter` | **25,000** | ↑ Longer densification |
-| `densify_grad_threshold` | **0.0001** | ↓↓ Aggressive densification |
-| `depth_l1_weight_init` | **2.0** | ↑↑ Strong depth for textureless walls |
-| `depth_l1_weight_final` | **0.1** | ↑ Keep depth influence longer |
-| `sh_degree` | **4** | Drone view-dependent lighting |
+| `percent_dense` | **0.04** | ↑↑↑ Max densification for sparse scenes |
+| `densify_until_iter` | **30,000** | ↑↑ Extended densification window |
+| `densify_grad_threshold` | **0.00008** | ↓↓↓ Most aggressive |
+| `depth_l1_weight_init` | **2.5** | ↑↑↑ Strongest depth regularization |
+| `depth_l1_weight_final` | **0.15** | ↑↑ Keep depth active longest |
+
+#### Tier 3: Outdoor Dense COLMAP (HCM0539 22.1MB, HCM0644 21.4MB, HCM0540 20.2MB)
+COLMAP already captured good structure → moderate tuning.
+| Param | Override | Rationale |
+|-------|----------|-----------|
+| `percent_dense` | **0.025** | ↑ Moderate (COLMAP already dense) |
+| `densify_until_iter` | **25,000** | Standard outdoor |
+| `densify_grad_threshold` | **0.00012** | ↓ Moderate |
+| `depth_l1_weight_init` | **1.8** | ↑ Moderate depth weight |
+| `depth_l1_weight_final` | **0.08** | ↑ Moderate |
 
 ### Quick Tuning
 
