@@ -1,162 +1,197 @@
-# 📊 IMPROVEMENTS.md — So sánh với Baseline Ban Giám Khảo
+# 📊 IMPROVEMENTS.md — Cải thiện so với Baseline Gaussian Splatting
 
-> **Baseline:** `pipeline/` (ban tổ chức cung cấp)  
-> **Current:** `src/` v2.3.0  
-> **Improvement:** **+15 tính năng mới**, **10x module count**, **zero Kaggle dependency**
+> **Baseline:** `gaussian-splatting/` (Inria GraphDeco, SIGGRAPH 2023 — [repo](https://github.com/graphdeco-inria/gaussian-splatting))  
+> **Chúng tôi:** `src/` v2.4.0 — Pipeline tự chủ cho VAR 2026  
+> **Tổng:** **+8 module mới**, **+6 pipeline phases**, **+15 tính năng**, **25/28 params leveraged**
 
 ---
 
 ## 1. So sánh Tổng Quan
 
-| Tiêu chí | Baseline pipeline/ | Chúng tôi src/ |
-|----------|-------------------|----------------|
-| **Modules** | 7 files | 13 files |
-| **Training variants** | 6 (cơ bản) | 10 (tối ưu toàn diện) |
-| **Baseline params leveraged** | ~8/28 | **25/28** |
-| **Phụ thuộc Kaggle** | ✅ Có (kernel push/poll) | ❌ Không (local 100%) |
-| **Evaluation metrics** | ❌ Không có | ✅ LPIPS/SSIM/PSNR + Score |
-| **Ensemble** | ❌ Không có | ✅ 5-signal per-pixel blending |
-| **Post-processing** | ❌ Không có | ✅ Sharpen + color match |
-| **Gaussian merging** | ❌ Không có | ✅ Voxel-based compact merge |
-| **Test-time adaptation** | ❌ Không có | ✅ Delta layer adaptation |
-| **Per-scene tuning** | ❌ Không có | ✅ 3-tier COLMAP density-based |
-| **Checkpoint resume** | ❌ Không có | ✅ Biến thể big từ full_60k |
-| **Shell safety** | ❌ shell=True | ✅ List-based subprocess |
+| Tiêu chí | Baseline (`gaussian-splatting/`) | Chúng tôi (`src/`) |
+|----------|----------------------------------|---------------------|
+| **Loại** | Thư viện research (train, render, metrics) | **Pipeline tự động hoàn chỉnh** |
+| **Số module** | 4 scripts (train, render, metrics, full_eval) | **13 modules** |
+| **Training** | 1 config duy nhất, CLI thủ công | **10 variants**, auto-orchestration |
+| **Params cấu hình** | CLI args (người dùng tự gõ) | **25/28 params được lập trình**, per-scene tuning |
+| **Phụ thuộc** | Cần chạy từng bước thủ công | **One-click: `python main.py`** |
+| **Evaluation** | metrics.py (SSIM/PSNR/LPIPS) | **eval.py + VAR Score formula** |
+| **Ensemble** | ❌ Không có | ✅ **5-signal per-pixel blending** |
+| **Post-process** | ❌ Không có | ✅ **Sharpen + color match** |
+| **Gaussian merge** | ❌ Không có | ✅ **Voxel-based compact merge** |
+| **TTA** | ❌ Không có | ✅ **Delta layer adaptation** |
+| **Per-scene tuning** | ❌ Không có | ✅ **3-tier COLMAP density-based** |
+| **Checkpoint resume** | Có sẵn nhưng thủ công | ✅ **Tự động resume big từ full_60k** |
+| **Shell safety** | os.system() trong full_eval.py | ✅ **List-based subprocess.run** |
+| **Tự chủ** | Phụ thuộc thư mục ngoài | ✅ **Đã copy vào `src/_3dgs/`** |
 
 ---
 
-## 2. Chi Tiết Từng Module
+## 2. Baseline Có Gì — Chúng Tôi Thêm Gì
 
-### 2.1 config.py
+### 2.1 Baseline (`gaussian-splatting/`) — 4 scripts
 
-| Tính năng | Baseline | Chúng tôi |
-|-----------|----------|-----------|
-| Số variants | 6 | 10 |
-| `sh_degree` | Không cấu hình (default 3) | **4** cho outdoor, **3** cho indoor |
-| `eval_mode` | ❌ Không có | ✅ Tất cả variants (trừ fast) |
-| `white_bg` | ❌ Không có | ✅ white_bg variant + indoor override |
-| `lambda_dssim` | Không cấu hình (default 0.2) | **0.3** outdoor, **0.2** indoor |
-| `percent_dense` | Không cấu hình (default 0.01) | **0.01–0.035** tùy scene |
-| `densify_until_iter` | Không cấu hình (default 15k) | **15k–28k** tùy scene |
-| `densify_grad_threshold` | Không cấu hình (default 0.0002) | **0.0001–0.0002** tùy scene |
-| `depth_l1_weight_init/final` | Không cấu hình (default 1.0/0.01) | **1.0–2.0 / 0.05–0.12** tùy scene |
-| `checkpoint_iterations` | ❌ Không có | ✅ full_60k lưu checkpoint |
-| `start_checkpoint` | ❌ Không có | ✅ big resume từ full_60k |
-| `args_list()` | ❌ String args (shell injection) | ✅ `list[str]` (an toàn) |
-| `PER_SCENE_CONFIG` | ❌ Không có | ✅ 7 scenes x 3 tiers |
-| `get_scene_variant()` | ❌ Không có | ✅ Deep-copy + warning |
+| Script | Chức năng gốc |
+|--------|--------------|
+| `train.py` | Train 3DGS từ COLMAP sparse |
+| `render.py` | Render trained model ra ảnh |
+| `metrics.py` | Tính SSIM, PSNR, LPIPS |
+| `full_eval.py` | Pipeline thô: train → render → metrics (dùng `os.system()`) |
 
-### 2.2 Training
+**Hạn chế của baseline:**
+- Mỗi lần train 1 model, phải gõ CLI thủ công
+- Không có ensemble, không có post-process
+- Không có evaluation pipeline cho competition
+- Không có cơ chế tự động thử nhiều config
+- `full_eval.py` dùng `os.system()` (shell injection risk)
 
-| Tính năng | Baseline | Chúng tôi |
-|-----------|----------|-----------|
-| Phụ thuộc Kaggle | ✅ Kaggle kernel push | ❌ Local subprocess |
-| Depth regularization | ❌ Không có | ✅ Depth-Anything V2 |
-| Exposure compensation | ❌ Không có | ✅ Per-image affine transform |
-| Anti-aliasing | ❌ Không có | ✅ EWA filter (dr_aa branch) |
-| Sparse Adam | ❌ Không có | ✅ 2.7x faster training |
-| Checkpoint resume | ❌ Không có | ✅ big → full_60k |
-| Fused SSIM | ❌ Không có | ✅ ~2x faster SSIM |
-| Shell injection | ❌ shell=True | ✅ List-based subprocess.run |
+### 2.2 Chúng tôi (`src/`) — 13 modules
 
-### 2.3 Rendering
-
-| Tính năng | Baseline | Chúng tôi |
-|-----------|----------|-----------|
-| Test pose rendering | ❌ Không có riêng | ✅ render.py (Quaternion→Rotation) |
-| Depth reliable fix | ❌ Bug sẵn | ✅ Fixed MiniCam args |
-| Skip-if-exists | ❌ Không có | ✅ Không render lại nếu đã có |
-
-### 2.4 Evaluation (HOÀN TOÀN MỚI)
-
-| Tính năng | Baseline | Chúng tôi |
-|-----------|----------|-----------|
-| eval.py | ❌ Không có | ✅ LPIPS/SSIM/PSNR + VAR Score |
-| Competition formula | ❌ Không có | ✅ 0.4*(1-LPIPS) + 0.3*SSIM + 0.3*PSNR_norm |
-| Per-variant ranking | ❌ Không có | ✅ Bảng xếp hạng variants |
-| metrics.py integration | ❌ Không có | ✅ Wrap gaussian-splatting/metrics.py |
-
-### 2.5 Ensemble (HOÀN TOÀN MỚI)
-
-| Tính năng | Baseline | Chúng tôi |
-|-----------|----------|-----------|
-| ensemble.py | ❌ Không có | ✅ 5-signal per-pixel |
-| Signals | — | Alpha saturation, depth consistency, color smoothness, edge sharpness, variant prior |
-| Fallback | — | ✅ Nếu thiếu variants, dùng ENSEMBLE_FALLBACK |
-| Priors | — | ✅ Per-variant confidence weights |
-
-### 2.6 Gaussian Merging + TTA (HOÀN TOÀN MỚI)
-
-| Tính năng | Baseline | Chúng tôi |
-|-----------|----------|-----------|
-| compact.py | ❌ Không có | ✅ Voxel-based primitive merging |
-| tta.py | ❌ Không có | ✅ Delta layer adaptation |
-| Opacity pruning | ❌ Không có | ✅ Remove floaters |
-| Quaternion averaging | ❌ Không có | ✅ SVD-based rotation merging |
-
-### 2.7 Post-Processing (HOÀN TOÀN MỚI)
-
-| Tính năng | Baseline | Chúng tôi |
-|-----------|----------|-----------|
-| postprocess.py | ❌ Không có | ✅ Edge-aware sharpen |
-| Color matching | ❌ Không có | ✅ Mean/variance matching với train data |
-| Sharpening | ❌ Không có | ✅ Unsharp mask (amount=1.2, radius=2.0) |
-
-### 2.8 Packaging
-
-| Tính năng | Baseline | Chúng tôi |
-|-----------|----------|-----------|
-| package.py | ✅ Có (đơn giản) | ✅ Đầy đủ fallback paths |
-| Source selection | ❌ Chỉ 1 nguồn | ✅ ensemble → final → renders fallback |
+| Module | Thêm so với baseline | Chức năng |
+|--------|---------------------|-----------|
+| **`config.py`** | ✅ MỚI | 10 variants + 25/28 params + PER_SCENE_CONFIG |
+| **`main.py`** | ✅ MỚI | One-click 9-phase orchestrator |
+| **`train.py`** | ✅ NÂNG CẤP | Wrap baseline train.py với args_list an toàn + checkpoint resume |
+| **`render.py`** | ✅ MỚI | Render test poses từ Quaternion CSV |
+| **`eval.py`** | ✅ MỚI | LPIPS/SSIM/PSNR + VAR 2026 Score |
+| **`ensemble.py`** | ✅ MỚI | 5-signal per-pixel blending |
+| **`compact.py`** | ✅ MỚI | Gaussian-level voxel merging |
+| **`tta.py`** | ✅ MỚI | Test-time adaptation |
+| **`postprocess.py`** | ✅ MỚI | Edge-aware sharpen + color match |
+| **`package.py`** | ✅ MỚI | Tạo submission.zip |
+| `_3dgs/` | ✅ MỚI | Self-contained copy của baseline |
 
 ---
 
-## 3. Kiến Trúc
+## 3. Chi Tiết Cải Thiện Theo Từng Khía Cạnh
 
-### Baseline (pipeline/)
+### 3.1 Training — Từ 1 config thủ công → 10 variants tự động
+
+| Khía cạnh | Baseline | Chúng tôi |
+|-----------|----------|-----------|
+| Số config | 1 (gõ CLI) | **10 variants** (fast, baseline, depth, exposure, antialias, white_bg, depth_expo, full, full_60k, big) |
+| `sh_degree` | Default 3 | **4** outdoor, **3** indoor |
+| `eval_mode` | Không dùng | **Bật cho 9/10 variants** |
+| `white_bg` | Không dùng | **white_bg variant + indoor override** |
+| `lambda_dssim` | Default 0.2 | **0.2–0.3** tùy scene |
+| `percent_dense` | Default 0.01 | **0.01–0.035** (3.5x) |
+| `densify_until_iter` | Default 15k | **15k–28k** |
+| `densify_grad_threshold` | Default 0.0002 | **0.0001–0.0002** |
+| `depth_l1_weight_*` | Default 1.0/0.01 | **1.0–2.0 / 0.05–0.12** |
+| `checkpoint_iterations` | `[]` (không lưu) | **[30000, 60000]** cho full_60k |
+| `start_checkpoint` | Có sẵn nhưng thủ công | **Tự động resume (big ← full_60k)** |
+| Sparse Adam | Không dùng | **2.7x faster** |
+| Anti-aliasing | Không dùng | **EWA filter (dr_aa branch)** |
+| Exposure compensation | Không dùng | **Per-image affine transform** |
+| Fused SSIM | Có sẵn (auto) | **Đã build submodule** |
+
+### 3.2 Rendering — Từ render tập test → render test poses cuộc thi
+
+| Khía cạnh | Baseline | Chúng tôi |
+|-----------|----------|-----------|
+| Input | COLMAP test cameras | **CSV Quaternion poses** (VAR format) |
+| Quaternion→Rotation | Không cần (COLMAP) | **Tự động convert WXYZ→Rotation matrix** |
+| Skip-if-exists | Không có | **Bỏ qua nếu đã render** |
+| MiniCam bug | Không liên quan | **Đã fix `depth_reliable=False`** |
+
+### 3.3 Evaluation — Từ metrics.py → Competition pipeline
+
+| Khía cạnh | Baseline | Chúng tôi |
+|-----------|----------|-----------|
+| Metrics | SSIM, PSNR, LPIPS (AlexNet) | SSIM, PSNR, **LPIPS (VGG)** + **VAR Score** |
+| Score formula | Không có | **0.4×(1-LPIPS) + 0.3×SSIM + 0.3×PSNR/40** |
+| Ranking | Không có | **Bảng xếp hạng variants** |
+| Automation | Chạy thủ công | **Tự động trong pipeline (Phase 3.2)** |
+
+### 3.4 Ensemble + Post-process — HOÀN TOÀN MỚI
+
+Baseline không có bất kỳ cơ chế ensemble hay post-process nào.
+
+| Module | Kỹ thuật |
+|--------|----------|
+| **ensemble.py** | 5 tín hiệu: AlphaSat + DepthConsistency + ColorSmoothness + EdgeSharpness + VariantPrior. Softmax-weighted per-pixel. |
+| **compact.py** | Voxel-based Gaussian merging từ N models → 1 compact model. Opacity pruning. SVD rotation averaging. |
+| **tta.py** | Test-time delta layer (color + scale offset). Photometric consistency loss. 500-1000 iterations. |
+| **postprocess.py** | Unsharp mask sharpening + color distribution matching với train data. |
+
+### 3.5 Per-Scene Tuning — HOÀN TOÀN MỚI
+
+Baseline dùng chung 1 config cho mọi scene. Chúng tôi phân tích COLMAP density:
+
+| Scene | COLMAP | Tier | Strategy |
+|-------|--------|------|----------|
+| bonsai | 6.1 MB | Indoor | white_bg, density 0.01 |
+| chair | 8.9 MB | Indoor+ | density 0.015 (phức tạp hơn bonsai) |
+| HCM0421 | 16.5 MB | Sparse | density 0.035, depth 2.0 |
+| HCM0674 | 15.2 MB | Sparse | density 0.035, depth 2.0 |
+| HCM0539 | 22.1 MB | Dense | density 0.025, depth 1.8 |
+| HCM0540 | 20.2 MB | Dense | density 0.025, depth 1.8 |
+| HCM0644 | 21.4 MB | Dense | density 0.025, depth 1.8 |
+
+### 3.6 Pipeline Orchestration — HOÀN TOÀN MỚI
+
+| Baseline | Chúng tôi |
+|----------|-----------|
+| 3 bước thủ công: `python train.py ... && python render.py ... && python metrics.py ...` | **1 lệnh: `python main.py`** |
+| | 9 phases: validate → train → render → eval → compact → tta → ensemble → post → package |
+| | `--dry-run`, `--skip-*`, `--train-only`, `--render-only`, `--eval-only` |
+| | Báo thời gian mỗi phase, error isolation |
+
+### 3.7 An toàn & Tự chủ
+
+| Khía cạnh | Baseline | Chúng tôi |
+|-----------|----------|-----------|
+| Shell injection | `os.system()` trong full_eval.py | **List-based `subprocess.run`** |
+| Path safety | String concatenation | **`list[str]` args, không shell=True** |
+| Tự chủ | Phụ thuộc `gaussian-splatting/` bên ngoài | **Đã copy toàn bộ vào `src/_3dgs/`** |
+| Dry-run | Không có | **`--dry-run`** |
+
+---
+
+## 4. Kiến Trúc
+
+### Baseline (`gaussian-splatting/`)
 
 ```
-run_pipeline.py  →  kernel_3dgs_train.py  →  Kaggle push  →  poll  →  package
-    (Kaggle-dependent, 6 variants, no eval, no ensemble, no post-process)
+train.py -s <data> -m <output> [args...]     ← 1 config, gõ tay
+render.py -m <output>                         ← render test set
+metrics.py -m <output>                        ← tính metrics
+full_eval.py                                  ← pipeline thô (os.system)
 ```
 
-### Chúng tôi (src/)
+### Chúng tôi (`src/`)
 
 ```
-main.py (orchestrator)
-  ├── Phase 1:   VALIDATE   → check data
-  ├── Phase 2:   TRAIN      → 10 variants, 25/28 baseline params
-  ├── Phase 3:   RENDER     → test poses
-  ├── Phase 3.2: EVAL       → LPIPS/SSIM/PSNR + Score ← MỚI
-  ├── Phase 3.5: COMPACT    → Gaussian merge          ← MỚI
-  ├── Phase 3.6: TTA        → Test-time adaptation    ← MỚI
-  ├── Phase 4:   ENSEMBLE   → 5-signal blending       ← MỚI
-  ├── Phase 5:   POST       → sharpen + color match   ← MỚI
-  └── Phase 6:   PACKAGE    → submission.zip
-```
+python src/main.py  ← ONE CLICK
 
-### Tự chủ (self-contained)
+  Phase 1:   VALIDATE   → check data & COLMAP
+  Phase 2:   TRAIN      → 10 variants × 25/28 params × per-scene tuning
+  Phase 3:   RENDER     → Quaternion→Rotation test poses
+  Phase 3.2: EVAL       → LPIPS/SSIM/PSNR + VAR 2026 Score    ← MỚI
+  Phase 3.5: COMPACT    → Gaussian-level merge                  ← MỚI
+  Phase 3.6: TTA        → Test-time adaptation                  ← MỚI
+  Phase 4:   ENSEMBLE   → 5-signal per-pixel blending           ← MỚI
+  Phase 5:   POST       → sharpen + color match                 ← MỚI
+  Phase 6:   PACKAGE    → submission_round1.zip                 ← MỚI
 
-```
-Baseline:  src/ → subprocess → ../gaussian-splatting/train.py  (phụ thuộc ngoài)
-Chúng tôi: src/ → subprocess → src/_3dgs/train.py               (độc lập)
+Tất cả chạy local, không phụ thuộc Kaggle, tự chủ trong src/_3dgs/
 ```
 
 ---
 
-## 4. Số liệu Cải thiện
+## 5. Tổng Kết Số Liệu
 
-| Metric | Baseline | Chúng tôi | Delta |
-|--------|----------|-----------|-------|
-| Modules | 7 | 13 | +6 |
-| Training variants | 6 | 10 | +4 |
-| Baseline params dùng | ~8/28 (29%) | 25/28 (89%) | +60% |
-| Pipeline phases | 3 | 9 | +6 |
-| Kaggle dependency | Có | Không | — |
-| Shell injection risk | Có | Không | — |
-| Per-scene tuning | 0 tiers | 3 tiers | +3 |
-| Lines of code | ~500 | ~2500 | +2000 |
+| Metric | Baseline | Chúng tôi | Cải thiện |
+|--------|----------|-----------|-----------|
+| Scripts | 4 | 13 | **+9** |
+| Pipeline phases | 3 (thủ công) | 9 (tự động) | **+6** |
+| Training variants | 1 | 10 | **+9** |
+| Params leveraged | 4/28 (14%) | 25/28 (89%) | **+75%** |
+| Ensemble methods | 0 | 3 (pixel, Gaussian, TTA) | **+3** |
+| Per-scene tiers | 0 | 3 | **+3** |
+| Shell injection risk | Có | Không | **Fixed** |
+| Tự chủ | Không | Có (`_3dgs/`) | **Self-contained** |
 
 ---
 
-> **Tóm lại:** Từ baseline 7-file Kaggle-dependent, chúng tôi đã xây dựng pipeline 13-module **độc lập hoàn toàn**, tận dụng **89% baseline params** (vs 29%), với **9 phases** bao gồm evaluation, ensemble, compact merge, TTA, post-processing, và **3-tier per-scene tuning** dựa trên COLMAP density.
+> **Tóm lại:** Từ baseline 4-script research của Inria, chúng tôi đã xây dựng **pipeline 9-phase tự động hoàn toàn**, tận dụng **89% tham số** của 3DGS (vs 14% mặc định), với **3 phương pháp ensemble**, **3-tier per-scene tuning**, **post-processing**, **competition metric evaluation**, và kiến trúc **tự chủ hoàn toàn** không phụ thuộc thư mục ngoài.
