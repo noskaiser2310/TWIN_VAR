@@ -378,7 +378,7 @@ VARIANTS: list[Variant] = [
 ]
 
 # ═══════════════════════════════════════════════════════════════
-#  ENSEMBLE CONFIG
+#  ENHANCED ENSEMBLE CONFIG (v2.0)
 # ═══════════════════════════════════════════════════════════════
 
 ENSEMBLE_VARIANTS = ["multiscale_edge", "multiscale_sky", "edge_60k", "multiscale_60k", "multiscale", "full_60k", "full", "depth_expo", "antialias", "exposure", "depth", "baseline"]
@@ -388,6 +388,25 @@ ENSEMBLE_PRIORS = {
     "multiscale_60k": 1.10, "multiscale": 1.05,
     "full_60k": 1.0, "full": 0.95, "depth_expo": 0.85, "antialias": 0.80,
     "exposure": 0.75, "depth": 0.70, "baseline": 0.60, "big": 1.05,
+}
+
+# Enhanced ensemble v2.0 — per-pixel variance + softmax + protected anchor
+ENSEMBLE_ANCHOR = "multiscale_edge"       # Protected base variant
+ENSEMBLE_NUM_COMPANIONS = 3               # Companions must agree to override anchor
+ENSEMBLE_AGREEMENT_THRESHOLD = 0.015      # Max per-pixel RGB std for agreement
+ENSEMBLE_TEMPERATURE = 2.0                # Default softmax temperature
+ENSEMBLE_TEMPERATURE_SEARCH = [1.0, 2.0, 3.0, 4.0]
+ENSEMBLE_VARIANCE_WEIGHT = 0.3            # Penalty for high-variance regions
+
+# Per-scene ensemble overrides
+PER_SCENE_ENSEMBLE = {
+    "bonsai":  {"temperature": 3.0, "anchor": "multiscale_60k"},
+    "chair":   {"temperature": 2.5, "anchor": "multiscale_60k"},
+    "HCM0421": {"temperature": 1.5, "anchor": "multiscale_edge"},
+    "HCM0674": {"temperature": 1.5, "anchor": "multiscale_edge"},
+    "HCM0539": {"temperature": 2.0, "anchor": "multiscale_edge"},
+    "HCM0540": {"temperature": 2.0, "anchor": "multiscale_edge"},
+    "HCM0644": {"temperature": 2.0, "anchor": "multiscale_edge"},
 }
 
 # ═══════════════════════════════════════════════════════════════
