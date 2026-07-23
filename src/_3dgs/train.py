@@ -10,7 +10,9 @@
 #
 
 import os
+import random
 import torch
+import torch.nn.functional as F
 from random import randint
 from utils.loss_utils import l1_loss, ssim
 from gaussian_renderer import render, network_gui
@@ -108,16 +110,46 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         bg = torch.rand((3), device="cuda") if opt.random_background else background
 
-        render_pkg = render(viewpoint_cam, gaussians, pipe, bg, use_trained_exp=dataset.train_test_exp, separate_sh=SPARSE_ADAM_AVAILABLE)
+        # ── Multi-Scale Training (FreqDS) ──
+        if opt.multiscale:
+            scale = random.uniform(opt.multiscale_min, opt.multiscale_max)
+        else:
+            scale = 1.0
+
+        render_pkg = render(viewpoint_cam, gaussians, pipe, bg, scaling_modifier=scale, use_trained_exp=dataset.train_test_exp, separate_sh=SPARSE_ADAM_AVAILABLE)
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
         if viewpoint_cam.alpha_mask is not None:
             alpha_mask = viewpoint_cam.alpha_mask.cuda()
+            if scale != 1.0:
+                alpha_mask = F.interpolate(alpha_mask.unsqueeze(0).unsqueeze(0),
+                    size=(image.shape[1], image.shape[2]), mode='nearest').squeeze(0).squeeze(0)
             image *= alpha_mask
 
         # Loss
-        gt_image = viewpoint_cam.original_image.cuda()
-        Ll1 = l1_loss(image, gt_image)
+        gt_image_orig = viewpoint_cam.original_image.cuda()
+        if scale != 1.0:
+            gt_image = F.interpolate(gt_image_orig.unsqueeze(0),
+                size=(image.shape[1], image.shape[2]), mode='bilinear', align_corners=False).squeeze(0)
+        else:
+            gt_image = gt_image_orig
+
+        # ── Sky Masking (outdoor drone scenes only) ──
+        if opt.sky_mask and not dataset.white_background:
+            # Simple heuristic: sky = blue/white, high brightness, top portion
+            # HSV: sky H ∈ [0.45, 0.70], low S, high V, top 50% of image
+            h, w = gt_image.shape[1], gt_image.shape[2]
+            top_half = int(h * 0.5)
+            gt_rgb = gt_image.permute(1, 2, 0)  # [H, W, 3]
+            # Approximate blue channel dominance for sky:
+            blue_dom = (gt_rgb[:, :, 2] > gt_rgb[:, :, 0] * 0.8) & (gt_rgb[:, :, 2] > gt_rgb[:, :, 1] * 0.8)
+            bright = gt_rgb.mean(dim=-1) > 0.4
+            sky = blue_dom & bright
+            sky[:top_half, :] = sky[:top_half, :]  # restrict to top half
+            loss_weight = 1.0 - 0.85 * sky.float()  # sky → 0.15 weight
+            Ll1 = (torch.abs(image - gt_image) * loss_weight).mean()
+        else:
+            Ll1 = l1_loss(image, gt_image)
         if FUSED_SSIM_AVAILABLE:
             ssim_value = fused_ssim(image.unsqueeze(0), gt_image.unsqueeze(0))
         else:

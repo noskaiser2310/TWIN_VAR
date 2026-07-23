@@ -62,6 +62,10 @@ class Variant:
     antialias: bool = False              # --antialiasing (PipelineParams)
     sparse_adam: bool = False            # --optimizer_type sparse_adam (2.7x faster)
     random_bg: bool = False              # --random_background
+    multiscale: bool = False             # FreqDS: random resolution training [0.5-2.0x]
+    multiscale_min: float = 0.5          # Min scale for multi-scale training
+    multiscale_max: float = 2.0          # Max scale for multi-scale training
+    sky_mask: bool = False               # Mask sky pixels in loss (outdoor drone)
     start_checkpoint: str = ""           # Resume from this variant's checkpoint
 
     # ── OptimizationParams (drone-tuned) ─────────────────
@@ -133,6 +137,12 @@ class Variant:
             a.append("--antialiasing")
         if self.densify_method != "abs":
             a.extend(["--densify_method", self.densify_method])
+        if self.multiscale:
+            a.append("--multiscale")
+            a.extend(["--multiscale_min", str(self.multiscale_min)])
+            a.extend(["--multiscale_max", str(self.multiscale_max)])
+        if self.sky_mask:
+            a.append("--sky_mask")
         if self.sparse_adam:
             a.extend(["--optimizer_type", "sparse_adam"])
         if self.checkpoint_iterations:
@@ -345,15 +355,24 @@ VARIANTS: list[Variant] = [
             checkpoint_iterations=[30000, 60000]),  # Save checkpoints for big variant resume
     Variant("big",             iters=90_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
             start_checkpoint="full_60k"),  # Resumes from full_60k checkpoint
+
+    # ── Multi-scale (FreqDS) variants — highest ROI for LPIPS/PSNR ──
+    Variant("multiscale",      iters=30_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            multiscale=True),  # FreqDS: random resolution [0.5-2.0x]
+    Variant("multiscale_60k",  iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            multiscale=True, checkpoint_iterations=[30000, 60000]),
+    Variant("multiscale_sky",  iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            multiscale=True, sky_mask=True, checkpoint_iterations=[30000, 60000]),  # + sky masking
 ]
 
 # ═══════════════════════════════════════════════════════════════
 #  ENSEMBLE CONFIG
 # ═══════════════════════════════════════════════════════════════
 
-ENSEMBLE_VARIANTS = ["full_60k", "full", "depth_expo", "antialias", "exposure", "depth", "baseline"]
-ENSEMBLE_FALLBACK = ["full_60k", "full", "depth_expo"]
+ENSEMBLE_VARIANTS = ["multiscale_60k", "multiscale", "full_60k", "full", "depth_expo", "antialias", "exposure", "depth", "baseline"]
+ENSEMBLE_FALLBACK = ["multiscale_60k", "full_60k", "full", "depth_expo"]
 ENSEMBLE_PRIORS = {
+    "multiscale_60k": 1.10, "multiscale": 1.05, "multiscale_sky": 1.12,
     "full_60k": 1.0, "full": 0.95, "depth_expo": 0.85, "antialias": 0.80,
     "exposure": 0.75, "depth": 0.70, "baseline": 0.60, "big": 1.05,
 }

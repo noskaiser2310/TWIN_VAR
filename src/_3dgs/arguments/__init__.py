@@ -98,6 +98,10 @@ class OptimizationParams(ParamGroup):
         self.random_background = False
         self.optimizer_type = "default"
         self.densify_method = "abs"     # "abs" (AbsGS 2024) or "orig" (vanilla 3DGS)
+        self.multiscale = False          # FreqDS: random resolution training [min, max]*
+        self.multiscale_min = 0.5        # Min scale factor for multi-scale training
+        self.multiscale_max = 2.0        # Max scale factor for multi-scale training
+        self.sky_mask = False            # Mask sky pixels in loss (outdoor drone scenes)
         super().__init__(parser, "Optimization Parameters")
 
 def get_combined_args(parser : ArgumentParser):
