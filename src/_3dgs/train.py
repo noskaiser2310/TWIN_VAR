@@ -42,6 +42,26 @@ try:
 except:
     SPARSE_ADAM_AVAILABLE = False
 
+def compute_edge_map(image):
+    """Compute edge map using Sobel-like gradient magnitude.
+    
+    Args:
+        image: [3, H, W] RGB tensor in [0, 1]
+    Returns:
+        edge_map: [H, W] normalized edge map in [0, 1]
+    """
+    gray = 0.299 * image[0] + 0.587 * image[1] + 0.114 * image[2]
+    # Horizontal & vertical finite differences (Sobel-like)
+    dx = gray[:, 2:] - gray[:, :-2]   # [H, W-2]
+    dy = gray[2:, :] - gray[:-2, :]   # [H-2, W]
+    dx = F.pad(dx, (1, 1, 0, 0))
+    dy = F.pad(dy, (0, 0, 1, 1))
+    edge = torch.sqrt(dx ** 2 + dy ** 2)
+    # Normalize to [0, 1]
+    edge = edge / (edge.max() + 1e-8)
+    return edge
+
+
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
 
     if not SPARSE_ADAM_AVAILABLE and opt.optimizer_type == "sparse_adam":
@@ -50,6 +70,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
     gaussians = GaussianModel(dataset.sh_degree, opt.optimizer_type, getattr(opt, 'densify_method', 'abs'))
+    gaussians.edge_guided = getattr(opt, 'edge_guided', False)
+    gaussians.edge_boost = getattr(opt, 'edge_boost', 0.5)
     scene = Scene(dataset, gaussians)
     gaussians.training_setup(opt)
     if checkpoint:
@@ -67,6 +89,16 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
     viewpoint_stack = scene.getTrainCameras().copy()
     viewpoint_indices = list(range(len(viewpoint_stack)))
+
+    # ── Edge-Guided Densification: precompute edge maps for all training images ──
+    edge_maps = {}
+    if gaussians.edge_guided:
+        print("Precomputing edge maps for edge-guided densification...")
+        for cam in viewpoint_stack:
+            img = cam.original_image.cuda()
+            edge_maps[cam.image_name] = compute_edge_map(img).cpu()  # Store on CPU to save VRAM
+        print(f"  Done: {len(edge_maps)} edge maps computed")
+
     ema_loss_for_log = 0.0
     ema_Ll1depth_for_log = 0.0
 
@@ -196,7 +228,11 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration < opt.densify_until_iter:
                 # Keep track of max radii in image-space for pruning
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
-                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+                gaussians.add_densification_stats(
+                    viewspace_point_tensor, visibility_filter,
+                    edge_map=edge_maps.get(viewpoint_cam.image_name).cuda() if (gaussians.edge_guided and viewpoint_cam.image_name in edge_maps) else None,
+                    width=int(viewpoint_cam.image_width), height=int(viewpoint_cam.image_height)
+                )
 
                 if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None

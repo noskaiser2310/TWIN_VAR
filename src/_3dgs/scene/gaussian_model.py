@@ -51,6 +51,8 @@ class GaussianModel:
         self.active_sh_degree = 0
         self.optimizer_type = optimizer_type
         self.densify_method = densify_method      # "abs" (AbsGS) or "orig" (vanilla 3DGS)
+        self.edge_guided = False                   # Edge-guided densification
+        self.edge_boost = 0.5                      # Boost multiplier for edge Gaussians
         self.max_sh_degree = sh_degree  
         self._xyz = torch.empty(0)
         self._features_dc = torch.empty(0)
@@ -469,15 +471,29 @@ class GaussianModel:
 
         torch.cuda.empty_cache()
 
-    def add_densification_stats(self, viewspace_point_tensor, update_filter):
+    def add_densification_stats(self, viewspace_point_tensor, update_filter,
+                                 edge_map=None, width=None, height=None):
+        # Edge-guided boost: gaussians projecting onto edge regions get priority densification
+        # Helps preserve thin structures (antennas, cables) in BTS drone scenes
+        if edge_map is not None and self.edge_guided:
+            # Convert viewspace NDC [-1,1] → pixel coordinates
+            px = ((viewspace_point_tensor[:, 0] + 1.0) / 2.0 * width).long().clamp(0, width - 1)
+            py = ((viewspace_point_tensor[:, 1] + 1.0) / 2.0 * height).long().clamp(0, height - 1)
+            edge_weight = edge_map[py, px]  # [N] edge magnitude at projected positions
+            boost = 1.0 + self.edge_boost * edge_weight  # [N] tensor: 1.0 + boost on edges
+        else:
+            boost = torch.ones(viewspace_point_tensor.shape[0], device=viewspace_point_tensor.device)
+
         # AbsGS (2024): sum of absolute gradients — better density control than L2 norm
         # Reference: "AbsGS: Recovering Fine Details in 3D Gaussian Splatting" (Ye et al., ECCV 2024)
         if self.densify_method == "abs":
-            self.xyz_gradient_accum[update_filter] += torch.abs(
-                viewspace_point_tensor.grad[update_filter, :2]
-            ).sum(dim=-1, keepdim=True)
+            self.xyz_gradient_accum[update_filter] += (
+                boost[update_filter].unsqueeze(-1) *
+                torch.abs(viewspace_point_tensor.grad[update_filter, :2]).sum(dim=-1, keepdim=True)
+            )
         else:
-            self.xyz_gradient_accum[update_filter] += torch.norm(
-                viewspace_point_tensor.grad[update_filter, :2], dim=-1, keepdim=True
+            self.xyz_gradient_accum[update_filter] += (
+                boost[update_filter].unsqueeze(-1) *
+                torch.norm(viewspace_point_tensor.grad[update_filter, :2], dim=-1, keepdim=True)
             )
         self.denom[update_filter] += 1

@@ -102,6 +102,8 @@ class OptimizationParams(ParamGroup):
         self.multiscale_min = 0.5        # Min scale factor for multi-scale training
         self.multiscale_max = 2.0        # Max scale factor for multi-scale training
         self.sky_mask = False            # Mask sky pixels in loss (outdoor drone scenes)
+        self.edge_guided = False         # Edge-guided densification for thin structures
+        self.edge_boost = 0.5            # Boost multiplier for edge-region Gaussians
         super().__init__(parser, "Optimization Parameters")
 
 def get_combined_args(parser : ArgumentParser):

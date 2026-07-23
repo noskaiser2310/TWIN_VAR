@@ -66,6 +66,8 @@ class Variant:
     multiscale_min: float = 0.5          # Min scale for multi-scale training
     multiscale_max: float = 2.0          # Max scale for multi-scale training
     sky_mask: bool = False               # Mask sky pixels in loss (outdoor drone)
+    edge_guided: bool = False            # Edge-guided densification (thin structures)
+    edge_boost: float = 0.5              # Boost multiplier for edge Gaussians
     start_checkpoint: str = ""           # Resume from this variant's checkpoint
 
     # ── OptimizationParams (drone-tuned) ─────────────────
@@ -143,6 +145,9 @@ class Variant:
             a.extend(["--multiscale_max", str(self.multiscale_max)])
         if self.sky_mask:
             a.append("--sky_mask")
+        if self.edge_guided:
+            a.append("--edge_guided")
+            a.extend(["--edge_boost", str(self.edge_boost)])
         if self.sparse_adam:
             a.extend(["--optimizer_type", "sparse_adam"])
         if self.checkpoint_iterations:
@@ -363,16 +368,24 @@ VARIANTS: list[Variant] = [
             multiscale=True, checkpoint_iterations=[30000, 60000]),
     Variant("multiscale_sky",  iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
             multiscale=True, sky_mask=True, checkpoint_iterations=[30000, 60000]),  # + sky masking
+
+    # ── Edge-guided densification — thin BTS structures (antennas, cables) ──
+    Variant("edge_60k",        iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            edge_guided=True, edge_boost=0.5, checkpoint_iterations=[30000, 60000]),
+    Variant("multiscale_edge", iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            multiscale=True, sky_mask=True, edge_guided=True, edge_boost=0.5,
+            checkpoint_iterations=[30000, 60000]),  # All features combined
 ]
 
 # ═══════════════════════════════════════════════════════════════
 #  ENSEMBLE CONFIG
 # ═══════════════════════════════════════════════════════════════
 
-ENSEMBLE_VARIANTS = ["multiscale_60k", "multiscale", "full_60k", "full", "depth_expo", "antialias", "exposure", "depth", "baseline"]
-ENSEMBLE_FALLBACK = ["multiscale_60k", "full_60k", "full", "depth_expo"]
+ENSEMBLE_VARIANTS = ["multiscale_edge", "multiscale_sky", "edge_60k", "multiscale_60k", "multiscale", "full_60k", "full", "depth_expo", "antialias", "exposure", "depth", "baseline"]
+ENSEMBLE_FALLBACK = ["multiscale_edge", "multiscale_60k", "full_60k", "full", "depth_expo"]
 ENSEMBLE_PRIORS = {
-    "multiscale_60k": 1.10, "multiscale": 1.05, "multiscale_sky": 1.12,
+    "multiscale_edge": 1.15, "multiscale_sky": 1.12, "edge_60k": 1.08,
+    "multiscale_60k": 1.10, "multiscale": 1.05,
     "full_60k": 1.0, "full": 0.95, "depth_expo": 0.85, "antialias": 0.80,
     "exposure": 0.75, "depth": 0.70, "baseline": 0.60, "big": 1.05,
 }
