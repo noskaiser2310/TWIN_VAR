@@ -392,19 +392,41 @@ VARIANTS: list[Variant] = [
     Variant("multiscale_edge", iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
             multiscale=True, sky_mask=True, edge_guided=True, edge_boost=0.5,
             checkpoint_iterations=[30000, 60000]),  # All features combined
+
+    # ── Indoor-optimized variants (white_bg + reduced densification) ──
+    Variant("indoor_60k",      iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            white_bg=True, checkpoint_iterations=[30000, 60000]),  # Indoor: full_60k + white_bg
+    Variant("indoor_edge_60k", iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            white_bg=True, edge_guided=True, edge_boost=0.5,
+            checkpoint_iterations=[30000, 60000]),  # Indoor: + edge for cables/structures
+
+    # ── Outdoor HCM-optimized variants (high quality, resume-based) ──
+    Variant("hcm_90k",         iters=90_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            multiscale=True, edge_guided=True, edge_boost=0.5,
+            start_checkpoint="full_60k"),  # Resume from full_60k + multiscale + edge
+    Variant("hcm_edge_strong", iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            multiscale=True, edge_guided=True, edge_boost=0.8,
+            checkpoint_iterations=[30000, 60000]),  # Stronger edge boost for thin structures
+
+    # ── High SH degree variant (caution: ~36 coefs vs 25, may OOM on T4) ──
+    Variant("hcm_sh5_60k",     iters=60_000, sh_degree=5, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            multiscale=True, checkpoint_iterations=[30000, 60000]),  # Higher SH for outdoor detail
 ]
 
 # ═══════════════════════════════════════════════════════════════
 #  ENHANCED ENSEMBLE CONFIG (v2.0)
 # ═══════════════════════════════════════════════════════════════
 
-ENSEMBLE_VARIANTS = ["multiscale_edge", "multiscale_sky", "edge_60k", "multiscale_60k", "multiscale", "full_60k", "full", "depth_expo", "antialias", "exposure", "depth", "baseline"]
-ENSEMBLE_FALLBACK = ["multiscale_edge", "multiscale_60k", "full_60k", "full", "depth_expo"]
+ENSEMBLE_VARIANTS = ["hcm_90k", "hcm_edge_strong", "hcm_sh5_60k", "indoor_60k", "indoor_edge_60k", "multiscale_edge", "multiscale_sky", "edge_60k", "multiscale_60k", "multiscale", "full_60k", "big", "full", "depth_expo", "antialias", "exposure", "depth", "baseline"]
+ENSEMBLE_FALLBACK = ["multiscale_edge", "multiscale_60k", "full_60k", "big", "full", "depth_expo"]
 ENSEMBLE_PRIORS = {
+    "indoor_edge_60k": 1.20, "indoor_60k": 1.15,  # Indoor-optimized (very high quality)
+    "hcm_90k": 1.18, "hcm_edge_strong": 1.15, "hcm_sh5_60k": 1.12,  # Outdoor HCM variants
     "multiscale_edge": 1.15, "multiscale_sky": 1.12, "edge_60k": 1.08,
     "multiscale_60k": 1.10, "multiscale": 1.05,
-    "full_60k": 1.0, "full": 0.95, "depth_expo": 0.85, "antialias": 0.80,
-    "exposure": 0.75, "depth": 0.70, "baseline": 0.60, "big": 1.05,
+    "full_60k": 1.0, "big": 1.05,
+    "full": 0.95, "depth_expo": 0.85, "antialias": 0.80,
+    "exposure": 0.75, "depth": 0.70, "baseline": 0.60,
 }
 
 # Enhanced ensemble v2.0 — per-pixel variance + softmax + protected anchor
