@@ -180,6 +180,8 @@ if __name__ == "__main__":
     p.add_argument("--scene", required=True)
     p.add_argument("--variant", default="full_60k")
     p.add_argument("--iters", type=int, default=None)
+    p.add_argument("--check", action="store_true",
+                    help="Smoke test: 100 iters, no densification, no eval")
     p.add_argument("--gs-dir", default=None)
     p.add_argument("--data-dir", default=None, help="Override data directory")
     args = p.parse_args()
@@ -198,6 +200,13 @@ if __name__ == "__main__":
 
     # Apply per-scene tuning overrides (indoor vs outdoor BTS)
     variant = get_scene_variant(variant, args.scene)
+
+    # Apply smoke-test override LAST so per-scene tuning doesn't undo it
+    if args.check:
+        variant.iters = 100
+        variant.densify_until_iter = 0
+        variant.eval_mode = False
+        print(f"  [CHECK] Override: {variant.iters} iters, no densify, no eval")
 
     success = train(args.scene, variant, Path(args.gs_dir) if args.gs_dir else None)
     sys.exit(0 if success else 1)
