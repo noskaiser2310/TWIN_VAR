@@ -100,19 +100,21 @@ def validate(scenes: list[str]) -> bool:
 #  Phase 2: Train
 # ═══════════════════════════════════════════════════════════════
 
-def train_variants(scenes: list[str], variant_names: list[str]) -> dict:
+def train_variants(scenes: list[str], variant_names: list[str], check: bool = False) -> dict:
     """Train specified variants on specified scenes."""
     results = {}
     for scene in scenes:
         results[scene] = {}
         for vname in variant_names:
             print(f"\n  -- {scene}/{vname} --")
+            cmd = [sys.executable, str(ROOT / "train.py"),
+                   "--scene", scene, "--variant", vname, "--gs-dir", str(GS_DIR),
+                   *DATA_DIR_ARG]
+            if check:
+                cmd.append("--check")
             r = subprocess.run(
-                [sys.executable, str(ROOT / "train.py"),
-                 "--scene", scene, "--variant", vname, "--gs-dir", str(GS_DIR),
-                 *DATA_DIR_ARG],
-                capture_output=False, text=True,
-            )
+                cmd,
+                capture_output=False, text=True,)
             results[scene][vname] = r.returncode == 0
     return results
 
@@ -242,6 +244,7 @@ def main():
     p.add_argument("--skip-ensemble", action="store_true")
     p.add_argument("--skip-post", action="store_true")
     p.add_argument("--data-dir", default=None, help="Override data directory (default: ../data)")
+    p.add_argument("--check", action="store_true", help="Smoke test: 100 iters, no densify, no eval")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
@@ -293,7 +296,7 @@ def main():
         print(f"\n{'='*60}")
         print(f"PHASE 2: TRAIN ({len(scenes)*len(variant_names)} jobs)")
         print(f"{'='*60}")
-        train_variants(scenes, variant_names)
+        train_variants(scenes, variant_names, args.check)
 
     if args.train_only:
         elapsed = (time.time() - t0) / 60
