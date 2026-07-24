@@ -159,11 +159,16 @@ def phase_init_submodules() -> bool:
     print("\n📦 PHASE: Initialize Submodules")
     all_ok = True
 
-    for name, rel_path in [
-        ("diff-gaussian-rasterization", "submodules/diff-gaussian-rasterization"),
-        ("fused-ssim", "submodules/fused-ssim"),
-        ("simple-knn", "submodules/simple-knn"),
-    ]:
+    # Submodule paths relative to repo root (as registered in .gitmodules)
+    # The submodules are at src/_3dgs/submodules/<name>
+    _gs_rel = "src/_3dgs/submodules"
+    submodule_infos = [
+        ("diff-gaussian-rasterization", f"{_gs_rel}/diff-gaussian-rasterization", True),   # recursive (needs third_party/glm)
+        ("fused-ssim", f"{_gs_rel}/fused-ssim", False),
+        ("simple-knn", f"{_gs_rel}/simple-knn", False),
+    ]
+
+    for name, rel_path, recursive in submodule_infos:
         ext_path = SUBMODULES / name
         if ext_path.exists() and (ext_path / "setup.py").exists():
             print(f"  ✅ {name}: already initialized")
@@ -171,10 +176,11 @@ def phase_init_submodules() -> bool:
 
         # Try git submodule update
         print(f"  ⏳ Initializing {name}...")
-        r = subprocess.run(
-            ["git", "submodule", "update", "--init", rel_path],
-            cwd=ROOT, check=False, capture_output=True, text=True,
-        )
+        cmd = ["git", "submodule", "update", "--init"]
+        if recursive:
+            cmd.append("--recursive")
+        cmd.append(rel_path)
+        r = subprocess.run(cmd, cwd=ROOT, check=False, capture_output=True, text=True)
         if r.returncode == 0 and (ext_path / "setup.py").exists():
             print(f"  ✅ {name}: initialized via git submodule")
             continue
@@ -187,7 +193,7 @@ def phase_init_submodules() -> bool:
                 shutil.rmtree(ext_path)
             ext_path.parent.mkdir(parents=True, exist_ok=True)
             r = subprocess.run(
-                ["git", "clone", fallback_url, str(ext_path)],
+                ["git", "clone", "--recursive" if recursive else "", fallback_url, str(ext_path)],
                 cwd=ROOT, check=False, capture_output=True, text=True,
             )
             if r.returncode == 0 and (ext_path / "setup.py").exists():
