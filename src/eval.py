@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT))
 from config import (
     DATA_DIR, GS_DIR, OUTPUT_DIR, VARIANTS,
     PSNR_MAX, LPIPS_WEIGHT, SSIM_WEIGHT, PSNR_WEIGHT,
+    set_data_dir,
 )
 
 
@@ -138,7 +139,11 @@ if __name__ == "__main__":
     p.add_argument("--scene", required=True)
     p.add_argument("--variant", default=None, help="Single variant to evaluate")
     p.add_argument("--all-variants", action="store_true", help="Evaluate all trained variants")
+    p.add_argument("--data-dir", default=None, help="Override data directory")
     args = p.parse_args()
+
+    if args.data_dir:
+        set_data_dir(args.data_dir)
 
     scene = args.scene
 

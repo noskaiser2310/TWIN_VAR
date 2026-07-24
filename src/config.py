@@ -26,16 +26,30 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent                          # src/
 GS_DIR = ROOT / "_3dgs"                                         # 3DGS code (self-contained copy)
-DATA_DIR = ROOT.parent / "data"                                 # scene data
+DATA_DIR: Path = ROOT.parent / "data"                           # scene data (overridable via set_data_dir)
 OUTPUT_DIR = ROOT / "output"                                    # all outputs
 SUBMISSION_DIR = ROOT / "submissions"                           # final ZIPs
 SUBMISSION_NAME = "submission_round1.zip"
 
 # ── Auto-detect scenes ────────────────────────────────────────
-SCENES = sorted(
-    d.name for d in DATA_DIR.iterdir()
-    if d.is_dir() and (d / "train" / "images").exists()
-)
+SCENES: list[str] = []
+
+
+def _scan_scenes() -> list[str]:
+    return sorted(
+        d.name for d in DATA_DIR.iterdir()
+        if d.is_dir() and (d / "train" / "images").exists()
+    )
+
+
+def set_data_dir(path: str | Path) -> None:
+    global DATA_DIR, SCENES
+    DATA_DIR = Path(path).resolve()
+    SCENES = _scan_scenes()
+    print(f"[DATA_DIR] → {DATA_DIR} ({len(SCENES)} scenes detected)")
+
+
+SCENES = _scan_scenes()
 
 # ═══════════════════════════════════════════════════════════════
 #  TRAINING VARIANTS — fully leveraging gaussian-splatting baseline

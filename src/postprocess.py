@@ -15,7 +15,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, OUTPUT_DIR, SHARPEN_AMOUNT, SHARPEN_RADIUS, COLOR_MATCH
+from config import DATA_DIR, OUTPUT_DIR, SHARPEN_AMOUNT, SHARPEN_RADIUS, COLOR_MATCH, set_data_dir
 
 
 def compute_train_stats(scene: str) -> dict:
@@ -101,5 +101,10 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--scene", required=True)
     p.add_argument("--input", default=None)
+    p.add_argument("--data-dir", default=None, help="Override data directory")
     args = p.parse_args()
+
+    if args.data_dir:
+        set_data_dir(args.data_dir)
+
     process_scene(args.scene, Path(args.input) if args.input else None)

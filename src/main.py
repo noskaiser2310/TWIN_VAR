@@ -43,8 +43,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+# Module-level flag for --data-dir propagation
+DATA_DIR_ARG: list[str] = []
+
 from config import (
-    DATA_DIR, GS_DIR, OUTPUT_DIR, SCENES, VARIANTS, SUBMISSION_NAME,
+    DATA_DIR, GS_DIR, OUTPUT_DIR, SCENES, VARIANTS, SUBMISSION_NAME, set_data_dir,
 )
 
 
@@ -97,7 +103,8 @@ def train_variants(scenes: list[str], variant_names: list[str]) -> dict:
             print(f"\n  -- {scene}/{vname} --")
             r = subprocess.run(
                 [sys.executable, str(ROOT / "train.py"),
-                 "--scene", scene, "--variant", vname, "--gs-dir", str(GS_DIR)],
+                 "--scene", scene, "--variant", vname, "--gs-dir", str(GS_DIR),
+                 *DATA_DIR_ARG],
                 capture_output=False, text=True,
             )
             results[scene][vname] = r.returncode == 0
@@ -117,7 +124,8 @@ def render_variants(scenes: list[str], variant_names: list[str]) -> dict:
             print(f"\n  -- {scene}/{vname} --")
             r = subprocess.run(
                 [sys.executable, str(ROOT / "render.py"),
-                 "--scene", scene, "--variant", vname, "--gs-dir", str(GS_DIR)],
+                 "--scene", scene, "--variant", vname, "--gs-dir", str(GS_DIR),
+                 *DATA_DIR_ARG],
                 capture_output=False, text=True,
             )
             results[scene][vname] = r.returncode == 0
@@ -132,7 +140,8 @@ def eval_scenes(scenes: list[str]) -> None:
     """Phase 3.2: Compute LPIPS/SSIM/PSNR + competition score."""
     for scene in scenes:
         subprocess.run(
-            [sys.executable, str(ROOT / "eval.py"), "--scene", scene, "--all-variants"],
+            [sys.executable, str(ROOT / "eval.py"), "--scene", scene, "--all-variants",
+             *DATA_DIR_ARG],
             capture_output=False,
         )
 
@@ -146,7 +155,8 @@ def perceptual_scenes(scenes: list[str], variant: str = "compact") -> None:
     for scene in scenes:
         subprocess.run(
             [sys.executable, str(ROOT / "perceptual_finetune.py"),
-             "--scene", scene, "--variant", variant],
+             "--scene", scene, "--variant", variant,
+             *DATA_DIR_ARG],
             capture_output=False,
         )
 
@@ -155,7 +165,8 @@ def compact_scenes(scenes: list[str]) -> None:
     """Phase 3.5: Gaussian-level primitive merging."""
     for scene in scenes:
         subprocess.run(
-            [sys.executable, str(ROOT / "compact.py"), "--scene", scene],
+            [sys.executable, str(ROOT / "compact.py"), "--scene", scene,
+             *DATA_DIR_ARG],
             capture_output=False,
         )
 
@@ -165,7 +176,8 @@ def tta_scenes(scenes: list[str], model: str = "compact") -> None:
     for scene in scenes:
         subprocess.run(
             [sys.executable, str(ROOT / "tta.py"),
-             "--scene", scene, "--model", model],
+             "--scene", scene, "--model", model,
+             *DATA_DIR_ARG],
             capture_output=False,
         )
 
@@ -173,7 +185,8 @@ def tta_scenes(scenes: list[str], model: str = "compact") -> None:
 def ensemble_scenes(scenes: list[str]) -> None:
     for scene in scenes:
         subprocess.run(
-            [sys.executable, str(ROOT / "ensemble.py"), "--scene", scene],
+            [sys.executable, str(ROOT / "ensemble.py"), "--scene", scene,
+             *DATA_DIR_ARG],
             capture_output=False,
         )
 
@@ -181,7 +194,8 @@ def ensemble_scenes(scenes: list[str]) -> None:
 def postprocess_scenes(scenes: list[str]) -> None:
     for scene in scenes:
         subprocess.run(
-            [sys.executable, str(ROOT / "postprocess.py"), "--scene", scene],
+            [sys.executable, str(ROOT / "postprocess.py"), "--scene", scene,
+             *DATA_DIR_ARG],
             capture_output=False,
         )
 
@@ -189,7 +203,8 @@ def postprocess_scenes(scenes: list[str]) -> None:
 def package_scenes(scenes: list[str], source: str = "final") -> Path:
     r = subprocess.run(
         [sys.executable, str(ROOT / "package.py"),
-         "--scenes", *scenes, "--source", source, "--output", SUBMISSION_NAME],
+         "--scenes", *scenes, "--source", source, "--output", SUBMISSION_NAME,
+         *DATA_DIR_ARG],
         capture_output=True, text=True,
     )
     print(r.stdout)
@@ -220,8 +235,12 @@ def main():
     p.add_argument("--skip-eval", action="store_true")
     p.add_argument("--skip-ensemble", action="store_true")
     p.add_argument("--skip-post", action="store_true")
+    p.add_argument("--data-dir", default=None, help="Override data directory (default: ../data)")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
+
+    if args.data_dir:
+        set_data_dir(args.data_dir)
 
     scenes = args.scenes if args.scenes else SCENES
 
@@ -243,6 +262,9 @@ def main():
         print(f"  + Gaussian-level compact merge (Phase 3.5)")
     if args.tta:
         print(f"  + Test-time adaptation (Phase 3.6)")
+
+    global DATA_DIR_ARG
+    DATA_DIR_ARG = ["--data-dir", str(DATA_DIR)] if args.data_dir else []
 
     if args.dry_run:
         print(f"\n  [DRY RUN] Would execute but not run.")

@@ -18,7 +18,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, OUTPUT_DIR, SUBMISSION_DIR, SUBMISSION_NAME, SCENES
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+from config import DATA_DIR, OUTPUT_DIR, SUBMISSION_DIR, SUBMISSION_NAME, SCENES, set_data_dir
 
 
 def package(scenes: list[str] | None = None, source: str = "final",
@@ -90,5 +92,10 @@ if __name__ == "__main__":
     p.add_argument("--scenes", nargs="*", default=None)
     p.add_argument("--source", default="final")
     p.add_argument("--output", default=None)
+    p.add_argument("--data-dir", default=None, help="Override data directory")
     args = p.parse_args()
+
+    if args.data_dir:
+        set_data_dir(args.data_dir)
+
     package(args.scenes, args.source, args.output)

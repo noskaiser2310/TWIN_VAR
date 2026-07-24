@@ -28,7 +28,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, GS_DIR, OUTPUT_DIR
+from config import DATA_DIR, GS_DIR, OUTPUT_DIR, set_data_dir
 
 # ── Default LPIPS fine-tuning params ──────────────────────────
 PERCEPTUAL_ITERS = 500          # Extra iterations for LPIPS optimization
@@ -291,7 +291,11 @@ if __name__ == "__main__":
     p.add_argument("--variant", default="full_60k")
     p.add_argument("--iters", type=int, default=PERCEPTUAL_ITERS)
     p.add_argument("--gs-dir", default=None)
+    p.add_argument("--data-dir", default=None, help="Override data directory")
     args = p.parse_args()
+
+    if args.data_dir:
+        set_data_dir(args.data_dir)
 
     success = finetune(
         args.scene, args.variant,

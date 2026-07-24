@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, GS_DIR, OUTPUT_DIR, TTA_CONFIG
+from config import DATA_DIR, GS_DIR, OUTPUT_DIR, TTA_CONFIG, set_data_dir
 
 
 def build_tta_script(
@@ -201,5 +201,10 @@ if __name__ == "__main__":
     p.add_argument("--model", default="compact")
     p.add_argument("--iters", type=int, default=None)
     p.add_argument("--lr", type=float, default=None)
+    p.add_argument("--data-dir", default=None, help="Override data directory")
     args = p.parse_args()
+
+    if args.data_dir:
+        set_data_dir(args.data_dir)
+
     adapt_model(args.scene, args.model, args.iters, args.lr)

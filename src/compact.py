@@ -299,6 +299,7 @@ if __name__ == "__main__":
     p.add_argument("--variants", default=None, help="Comma-separated variant names")
     p.add_argument("--voxel-size", type=float, default=None)
     p.add_argument("--opacity-cull", type=float, default=None)
+    p.add_argument("--data-dir", default=None, help="Override data directory (ignored, for main.py compat)")
     args = p.parse_args()
 
     variants = args.variants.split(",") if args.variants else None

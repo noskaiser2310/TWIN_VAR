@@ -24,7 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, GS_DIR, OUTPUT_DIR, VARIANTS, Variant, get_scene_variant
+from config import DATA_DIR, GS_DIR, OUTPUT_DIR, VARIANTS, Variant, get_scene_variant, set_data_dir
 
 
 def prepare_scene(scene: str, work_dir: Path) -> Path:
@@ -148,7 +148,11 @@ if __name__ == "__main__":
     p.add_argument("--variant", default="full_60k")
     p.add_argument("--iters", type=int, default=None)
     p.add_argument("--gs-dir", default=None)
+    p.add_argument("--data-dir", default=None, help="Override data directory")
     args = p.parse_args()
+
+    if args.data_dir:
+        set_data_dir(args.data_dir)
 
     vmap = {v.name: v for v in VARIANTS}
     if args.variant not in vmap:

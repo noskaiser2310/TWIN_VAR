@@ -33,6 +33,7 @@ from config import (
     ENSEMBLE_ANCHOR, ENSEMBLE_NUM_COMPANIONS, ENSEMBLE_AGREEMENT_THRESHOLD,
     ENSEMBLE_TEMPERATURE, ENSEMBLE_VARIANCE_WEIGHT,
     PER_SCENE_ENSEMBLE,
+    set_data_dir,
 )
 
 
@@ -377,7 +378,11 @@ if __name__ == "__main__":
                    help="Softmax temperature (default: per-scene auto)")
     p.add_argument("--no-anchor", action="store_true",
                    help="Disable protected-anchor blending")
+    p.add_argument("--data-dir", default=None, help="Override data directory")
     args = p.parse_args()
+
+    if args.data_dir:
+        set_data_dir(args.data_dir)
 
     variants = args.variants.split(",") if args.variants else None
     ensemble_scene(
