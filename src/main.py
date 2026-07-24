@@ -49,9 +49,14 @@ if hasattr(sys.stdout, "reconfigure"):
 # Module-level flag for --data-dir propagation
 DATA_DIR_ARG: list[str] = []
 
-from config import (
-    DATA_DIR, GS_DIR, OUTPUT_DIR, SCENES, VARIANTS, SUBMISSION_NAME, set_data_dir,
-)
+import config as _cfg
+DATA_DIR = _cfg.DATA_DIR
+GS_DIR = _cfg.GS_DIR
+OUTPUT_DIR = _cfg.OUTPUT_DIR
+SCENES = _cfg.SCENES
+VARIANTS = _cfg.VARIANTS
+SUBMISSION_NAME = _cfg.SUBMISSION_NAME
+set_data_dir = _cfg.set_data_dir
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -241,6 +246,10 @@ def main():
 
     if args.data_dir:
         set_data_dir(args.data_dir)
+        # Cập nhật local references sau khi set_data_dir thay đổi module vars
+        global DATA_DIR, SCENES
+        DATA_DIR = _cfg.DATA_DIR
+        SCENES = _cfg.SCENES
 
     scenes = args.scenes if args.scenes else SCENES
 
