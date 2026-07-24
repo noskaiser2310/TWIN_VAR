@@ -89,7 +89,7 @@ for i, p in enumerate(test_poses):
     world_view_transform = torch.eye(4, device="cuda")
     world_view_transform[:3, :3] = R_t
     world_view_transform[:3, 3] = T_t
-    proj_matrix = getProjectionMatrix(znear, zfar, FoVx, FoVy).transpose(0, 1)
+    proj_matrix = getProjectionMatrix(znear, zfar, FoVx, FoVy).transpose(0, 1).cuda()
     full_proj_transform = world_view_transform @ proj_matrix
 
     vp = MiniCam(width=w, height=h, fovy=FoVy, fovx=FoVx,
