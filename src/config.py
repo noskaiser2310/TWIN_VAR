@@ -227,6 +227,8 @@ _CHAIR_DEFAULTS: dict = {
 # Outdoor BTS with SPARSE COLMAP (HCM0421: 16.5MB, HCM0674: 15.2MB)
 # → COLMAP struggles → compensate with stronger densification + depth.
 #   Values balanced to avoid OOM on T4 16GB (240 imgs × sparse Gaussians).
+# NOTE: sh_degree intentionally omitted (dataclass default=4) so variant-level
+# overrides like hcm_sh5_60k (sh_degree=5) are NOT silently overwritten.
 _OUTDOOR_SPARSE_DEFAULTS: dict = {
     "white_bg": False,
     "lambda_dssim": 0.3,
@@ -235,11 +237,12 @@ _OUTDOOR_SPARSE_DEFAULTS: dict = {
     "densify_grad_threshold": 0.0001,    # ↓↓ Aggressive (not extreme: avoids OOM)
     "depth_l1_weight_init": 2.0,         # ↑↑ Strong depth (balanced: noisy drone depth)
     "depth_l1_weight_final": 0.12,       # ↑↑ Keep depth active
-    "sh_degree": 4,
 }
 
 # Outdoor BTS with DENSE COLMAP (HCM0539: 22.1MB, HCM0644: 21.4MB, HCM0540: 20.2MB)
 # → COLMAP already captured good structure → moderate tuning
+# NOTE: sh_degree intentionally omitted (dataclass default=4) so variant-level
+# overrides like hcm_sh5_60k (sh_degree=5) are NOT silently overwritten.
 _OUTDOOR_DENSE_DEFAULTS: dict = {
     "white_bg": False,
     "lambda_dssim": 0.3,
@@ -248,7 +251,6 @@ _OUTDOOR_DENSE_DEFAULTS: dict = {
     "densify_grad_threshold": 0.00012,   # ↓ Moderate
     "depth_l1_weight_init": 1.8,         # ↑ Moderate depth weight
     "depth_l1_weight_final": 0.08,       # ↑ Moderate
-    "sh_degree": 4,
 }
 
 PER_SCENE_CONFIG: dict[str, dict] = {
