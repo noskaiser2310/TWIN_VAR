@@ -268,6 +268,8 @@ PER_SCENE_CONFIG: dict[str, dict] = {
 
 
 # Safer defaults for auto-detected unknown scenes (less aggressive than hand-tuned)
+# NOTE: sh_degree intentionally omitted (dataclass default=4) so variant-level
+# overrides like hcm_sh5_60k (sh_degree=5) are NOT silently overwritten.
 _AUTO_OUTDOOR_DEFAULTS: dict = {
     "white_bg": False,
     "lambda_dssim": 0.25,
@@ -276,7 +278,6 @@ _AUTO_OUTDOOR_DEFAULTS: dict = {
     "densify_grad_threshold": 0.00015,
     "depth_l1_weight_init": 1.5,
     "depth_l1_weight_final": 0.08,
-    "sh_degree": 4,
 }
 
 
