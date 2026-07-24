@@ -154,8 +154,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if viewpoint_cam.alpha_mask is not None:
             alpha_mask = viewpoint_cam.alpha_mask.cuda()
             if scale != 1.0:
-                alpha_mask = F.interpolate(alpha_mask.unsqueeze(0).unsqueeze(0),
-                    size=(image.shape[1], image.shape[2]), mode='nearest').squeeze(0).squeeze(0)
+                alpha_mask = F.interpolate(alpha_mask.unsqueeze(0),
+                    size=(image.shape[1], image.shape[2]), mode='nearest').squeeze(0)
             image *= alpha_mask
 
         # Loss
