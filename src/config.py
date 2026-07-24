@@ -359,6 +359,7 @@ def get_scene_variant(variant: Variant, scene: str) -> Variant:
 VARIANTS: list[Variant] = [
     # Quick test
     Variant("fast", iters=7_000, eval_mode=False, quiet=False),
+    Variant("check", iters=100, eval_mode=False, quiet=False, densify_until_iter=0),
 
     # Anchor reference
     Variant("baseline", iters=30_000, sh_degree=3),
