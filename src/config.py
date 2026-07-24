@@ -402,6 +402,9 @@ VARIANTS: list[Variant] = [
     Variant("indoor_edge_60k", iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
             white_bg=True, edge_guided=True, edge_boost=0.5,
             checkpoint_iterations=[30000, 60000]),  # Indoor: + edge for cables/structures
+    Variant("indoor_90k",      iters=90_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            white_bg=True, multiscale=True,
+            start_checkpoint="full_60k"),  # Indoor: resume từ full_60k + white_bg + multiscale (quality cao nhất)
 
     # ── Outdoor HCM-optimized variants (high quality, resume-based) ──
     Variant("hcm_90k",         iters=90_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
@@ -442,10 +445,13 @@ ENSEMBLE_VARIANCE_WEIGHT = 0.3            # Penalty for high-variance regions
 
 # Per-scene ensemble overrides
 PER_SCENE_ENSEMBLE = {
-    "bonsai":  {"temperature": 3.0, "anchor": "multiscale_60k"},
-    "chair":   {"temperature": 2.5, "anchor": "multiscale_60k"},
+    # Indoor: indoor_60k là anchor mới (full_60k + white_bg = chất lượng cao nhất)
+    "bonsai":  {"temperature": 3.0, "anchor": "indoor_60k"},
+    "chair":   {"temperature": 2.5, "anchor": "indoor_60k"},
+    # Outdoor sparse: multiscale_edge giữ nguyên (antenna detail)
     "HCM0421": {"temperature": 1.5, "anchor": "multiscale_edge"},
     "HCM0674": {"temperature": 1.5, "anchor": "multiscale_edge"},
+    # Outdoor dense: hcm_edge_strong mới (edge_boost=0.8 cho cấu trúc mỏng)
     "HCM0539": {"temperature": 2.0, "anchor": "multiscale_edge"},
     "HCM0540": {"temperature": 2.0, "anchor": "multiscale_edge"},
     "HCM0644": {"temperature": 2.0, "anchor": "multiscale_edge"},
@@ -467,7 +473,7 @@ COMPACT_CONFIG = {
     "voxel_size": 0.005,
     "opacity_cull": 0.05,
 }
-COMPACT_VARIANTS = ["full_60k", "full", "depth_expo", "antialias"]
+COMPACT_VARIANTS = ["full_60k", "indoor_60k", "indoor_edge_60k", "multiscale_edge", "hcm_edge_strong", "big", "full", "depth_expo", "antialias"]
 
 # ═══════════════════════════════════════════════════════════════
 #  TEST-TIME ADAPTATION
