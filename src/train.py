@@ -105,14 +105,16 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
 
 
 def train(scene: str, variant: Variant, gs_dir: Path | None = None,
-           resume_from: str | None = None) -> bool:
+           resume_from: str | None = None,
+           resume_path: str | None = None) -> bool:
     """Train one 3DGS variant. Returns True on success.
 
     Uses list-based subprocess.run for safety (no shell injection).
     Supports checkpoint resume via:
       - variant.start_checkpoint: .pth checkpoint (preserves optimizer state)
       - variant.resume_ply: PLY from another variant (preserves Gaussians only)
-      - --resume-from flag: override, loads PLY from any variant at runtime
+      - --resume-from: loads PLY from any variant at runtime
+      - --resume-path: custom path to load PLY from (e.g. from other notebook)
     """
     if gs_dir is None:
         gs_dir = GS_DIR
@@ -169,7 +171,12 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None,
     # The optimizer will reinitialize (LR starts from 0), but Gaussian positions/shapes
     # from the previous training are preserved — saving 50-80% training time.
     # Priority: --resume-from CLI override > variant.resume_ply config
-    if resume_from:
+    # ── Resolve PLY source: custom path or default model dir ──
+    if resume_path and not resume_from:
+        # --resume-path without --resume-from: path IS the full variant directory
+        ply_source = "custom"
+        custom_source = Path(resume_path)
+    elif resume_from:
         ply_source = resume_from
     elif variant.resume_ply and not base_model:
         ply_source = variant.resume_ply
@@ -177,7 +184,16 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None,
         ply_source = None
 
     if ply_source:
-        src_variant = OUTPUT_DIR / "models" / scene / ply_source
+        # --resume-path overrides default model path (for loading from other notebooks)
+        if resume_path and resume_from:
+            # --resume-path /path/to/models + --resume-from variant_name
+            src_variant = Path(resume_path) / ply_source
+        elif resume_path and not resume_from:
+            # --resume-path /path/to/models/variant (full path)
+            src_variant = custom_source
+        else:
+            # Default: OUTPUT_DIR/models/scene/variant_name
+            src_variant = OUTPUT_DIR / "models" / scene / ply_source
         src_pc_dir = src_variant / "point_cloud"
         if src_pc_dir.exists():
             # Find latest iteration in source model
@@ -249,6 +265,10 @@ if __name__ == "__main__":
     p.add_argument("--data-dir", default=None, help="Override data directory")
     p.add_argument("--resume-from", default=None,
                     help="Load PLY from this variant and continue training (e.g. --resume-from quick_15k)")
+    p.add_argument("--resume-path", default=None,
+                    help="Custom path to model directory (for loading from other notebooks). "
+                         "Combine with --resume-from or use as full path."
+                         "E.g. --resume-path TWIN_VAR/output/models/HCM0421 --resume-from fast")
     args = p.parse_args()
 
     if args.data_dir:
@@ -274,5 +294,6 @@ if __name__ == "__main__":
         print(f"  [CHECK] Override: {variant.iters} iters, no densify, no eval")
 
     success = train(args.scene, variant, Path(args.gs_dir) if args.gs_dir else None,
-                     resume_from=args.resume_from)
+                     resume_from=args.resume_from,
+                     resume_path=args.resume_path)
     sys.exit(0 if success else 1)
