@@ -27,8 +27,9 @@ from scipy.ndimage import uniform_filter, gaussian_filter
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+import config as _cfg
 from config import (
-    DATA_DIR, OUTPUT_DIR,
+    OUTPUT_DIR,
     ENSEMBLE_VARIANTS, ENSEMBLE_FALLBACK, ENSEMBLE_PRIORS,
     ENSEMBLE_ANCHOR, ENSEMBLE_NUM_COMPANIONS, ENSEMBLE_AGREEMENT_THRESHOLD,
     ENSEMBLE_TEMPERATURE, ENSEMBLE_VARIANCE_WEIGHT,
@@ -286,9 +287,9 @@ def ensemble_scene(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Read test poses
-    test_csv = DATA_DIR / scene / "test" / "test_poses.csv"
+    test_csv = _cfg.DATA_DIR / scene / "test" / "test_poses.csv"
     if not test_csv.exists():
-        test_csv = DATA_DIR / scene / "test_poses.csv"
+        test_csv = _cfg.DATA_DIR / scene / "test_poses.csv"
     with open(test_csv) as f:
         test_poses = list(csv.DictReader(f))
 

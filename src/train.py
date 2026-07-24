@@ -24,12 +24,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, GS_DIR, OUTPUT_DIR, VARIANTS, Variant, get_scene_variant, set_data_dir
+import config as _cfg
+from config import GS_DIR, OUTPUT_DIR, VARIANTS, Variant, get_scene_variant, set_data_dir
 
 
 def prepare_scene(scene: str, work_dir: Path) -> Path:
     """Copy scene data into working directory in COLMAP format 3DGS expects."""
-    src = DATA_DIR / scene
+    src = _cfg.DATA_DIR / scene
     dst = work_dir / scene
     dst.mkdir(parents=True, exist_ok=True)
 

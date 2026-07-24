@@ -20,14 +20,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, GS_DIR, OUTPUT_DIR, set_data_dir
+import config as _cfg
+from config import GS_DIR, OUTPUT_DIR, set_data_dir
 
 
 def get_test_poses_csv(scene: str) -> Path:
     """Find test_poses.csv for a scene."""
     for p in [
-        DATA_DIR / scene / "test" / "test_poses.csv",
-        DATA_DIR / scene / "test_poses.csv",
+        _cfg.DATA_DIR / scene / "test" / "test_poses.csv",
+        _cfg.DATA_DIR / scene / "test_poses.csv",
     ]:
         if p.exists():
             return p

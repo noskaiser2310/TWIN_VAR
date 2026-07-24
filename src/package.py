@@ -20,7 +20,8 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-from config import DATA_DIR, OUTPUT_DIR, SUBMISSION_DIR, SUBMISSION_NAME, SCENES, set_data_dir
+import config as _cfg
+from config import OUTPUT_DIR, SUBMISSION_DIR, SUBMISSION_NAME, SCENES, set_data_dir
 
 
 def package(scenes: list[str] | None = None, source: str = "final",
@@ -50,9 +51,9 @@ def package(scenes: list[str] | None = None, source: str = "final",
                     report["scenes"][scene] = {"expected": 0, "added": 0, "missing": 0}
                     continue
 
-            test_csv = DATA_DIR / scene / "test" / "test_poses.csv"
+            test_csv = _cfg.DATA_DIR / scene / "test" / "test_poses.csv"
             if not test_csv.exists():
-                test_csv = DATA_DIR / scene / "test_poses.csv"
+                test_csv = _cfg.DATA_DIR / scene / "test_poses.csv"
             with open(test_csv) as f:
                 expected = [r["image_name"] for r in csv.DictReader(f)]
 

@@ -15,14 +15,15 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, OUTPUT_DIR, SHARPEN_AMOUNT, SHARPEN_RADIUS, COLOR_MATCH, set_data_dir
+import config as _cfg
+from config import OUTPUT_DIR, SHARPEN_AMOUNT, SHARPEN_RADIUS, COLOR_MATCH, set_data_dir
 
 
 def compute_train_stats(scene: str) -> dict:
     """Compute mean/std of training images for color matching."""
-    img_dir = DATA_DIR / scene / "train" / "images"
+    img_dir = _cfg.DATA_DIR / scene / "train" / "images"
     if not img_dir.exists():
-        img_dir = DATA_DIR / scene / "images"
+        img_dir = _cfg.DATA_DIR / scene / "images"
     if not img_dir.exists():
         return {"mean": [0.5, 0.5, 0.5], "std": [0.25, 0.25, 0.25]}
 

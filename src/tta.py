@@ -23,7 +23,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import DATA_DIR, GS_DIR, OUTPUT_DIR, TTA_CONFIG, set_data_dir
+import config as _cfg
+from config import GS_DIR, OUTPUT_DIR, TTA_CONFIG, set_data_dir
 
 
 def build_tta_script(
@@ -155,9 +156,9 @@ def adapt_model(scene: str, model_name: str = "compact",
         return False
 
     # Read test poses
-    test_csv = DATA_DIR / scene / "test" / "test_poses.csv"
+    test_csv = _cfg.DATA_DIR / scene / "test" / "test_poses.csv"
     if not test_csv.exists():
-        test_csv = DATA_DIR / scene / "test_poses.csv"
+        test_csv = _cfg.DATA_DIR / scene / "test_poses.csv"
     with open(test_csv) as f:
         test_poses = list(csv.DictReader(f))
 
