@@ -57,3 +57,7 @@ pulled_kernels/
 kernel_submission/
 # Depth-Anything (cloned at runtime)
 Depth-Anything-V2/
+
+# Documentation (avoid leaking internal notes/strategy)
+docs/
+*.md
