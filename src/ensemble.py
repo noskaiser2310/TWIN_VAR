@@ -48,7 +48,11 @@ def load_renders(scene: str, variant: str) -> dict[str, np.ndarray]:
     if not render_dir.exists():
         return {}
     renders = {}
-    for p in sorted(render_dir.glob("*.png")):
+    files = []
+    for e in ["*.png", "*.jpg", "*.jpeg"]:
+        files.extend(render_dir.glob(e))
+    files.sort()
+    for p in files:
         img = cv2.imread(str(p))
         if img is None:
             continue
