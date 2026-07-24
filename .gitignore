@@ -53,6 +53,7 @@ Thumbs.db
 # Jupyter
 *.ipynb_checkpoints/
 .ipynb_checkpoints/
-
+pulled_kernels/
+kernel_submission/
 # Depth-Anything (cloned at runtime)
 Depth-Anything-V2/
