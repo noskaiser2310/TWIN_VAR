@@ -149,6 +149,9 @@ def phase_cuda_extensions() -> bool:
     print("\n⚙️  PHASE: Build CUDA Extensions")
     _set_compiler_env()
 
+    # Limit parallel compilation jobs to avoid OOM on Kaggle T4
+    os.environ["MAX_JOBS"] = "2"
+
     # Uninstall first to avoid conflicts
     for ext_name, _ in CUDA_EXTENSIONS:
         run(
@@ -157,20 +160,24 @@ def phase_cuda_extensions() -> bool:
             desc=f"uninstall {ext_name}",
         )
 
-    # Build & install each extension
+    # Build & install each extension (output streams in real-time)
     all_ok = True
     for ext_name, ext_path in CUDA_EXTENSIONS:
         if not ext_path.exists():
             print(f"  ⚠  SKIP {ext_name}: path not found {ext_path}")
             all_ok = False
             continue
-        ok = run(
+        label = f"build & install {ext_name}"
+        print(f"  ⏳ BUILDING: {label}...")
+        r = subprocess.run(
             [sys.executable, "-m", "pip", "install",
              "--no-build-isolation", str(ext_path)],
-            cwd=ROOT,
-            desc=f"build & install {ext_name}",
+            cwd=ROOT, check=False, text=True,
         )
-        if not ok:
+        if r.returncode == 0:
+            print(f"  ✅ OK: {label}")
+        else:
+            print(f"  ❌ FAILED (exit={r.returncode}): {label}")
             all_ok = False
 
     return all_ok
