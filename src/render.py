@@ -54,8 +54,8 @@ test_poses = json.loads("""{poses_json}""")
 safe_state(True)
 
 ds = Namespace(source_path="{workspace_path}", model_path="{model_path}",
-               sh_degree=3, images="images", resolution=-1,
-               white_background=False, data_device="cuda",
+               sh_degree=3, images="images", depths="", resolution=-1,
+               white_background=False, data_device="cuda", rand_pcd=False,
                eval=False, train_test_exp=False)
 pipe = Namespace(convert_SHs_python=False, compute_cov3D_python=False,
                  debug=False, antialiasing=False)
