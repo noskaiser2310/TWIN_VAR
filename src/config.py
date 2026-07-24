@@ -36,6 +36,8 @@ SCENES: list[str] = []
 
 
 def _scan_scenes() -> list[str]:
+    if not DATA_DIR.exists():
+        return []
     return sorted(
         d.name for d in DATA_DIR.iterdir()
         if d.is_dir() and (d / "train" / "images").exists()
