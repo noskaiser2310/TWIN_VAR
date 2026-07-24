@@ -213,7 +213,9 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None,
                     tgt_pc_dir.mkdir(parents=True, exist_ok=True)
                     tgt_ply = tgt_pc_dir / "point_cloud.ply"
                     shutil.copy(str(src_ply), str(tgt_ply))
-                    print(f"  [RESUME.PLY] {ply_source}/iter_{load_iter} → {variant.name}")
+                    # Show useful source info (variant name or actual path)
+                    src_label = f"{ply_source}/iter_{load_iter}" if ply_source != "custom" else str(src_variant)
+                    print(f"  [RESUME.PLY] {src_label} → {variant.name}")
                     print(f"    Copy {src_ply.name} ({src_ply.stat().st_size / 1024 / 1024:.1f} MB)")
                 else:
                     print(f"  [WARN] No PLY at {src_ply}, training from scratch")
