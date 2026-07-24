@@ -27,6 +27,35 @@ sys.path.insert(0, str(ROOT))
 import config as _cfg
 from config import GS_DIR, OUTPUT_DIR, VARIANTS, Variant, get_scene_variant, set_data_dir
 
+# Import COLMAP binary reader/writer directly (avoid _3dgs package __init__ which needs CUDA)
+import importlib.util
+_colmap_loader_spec = importlib.util.spec_from_file_location(
+    "colmap_loader", str(ROOT / "_3dgs" / "scene" / "colmap_loader.py"))
+_colmap_loader = importlib.util.module_from_spec(_colmap_loader_spec)
+_colmap_loader_spec.loader.exec_module(_colmap_loader)
+read_extrinsics_binary = _colmap_loader.read_extrinsics_binary
+write_extrinsics_binary = _colmap_loader.write_extrinsics_binary
+
+
+def _filter_colmap_to_existing_images(colmap_dir: Path, img_dir: Path) -> None:
+    """Filter COLMAP images.bin to only include images that exist in img_dir.
+
+    Rewrites images.bin in place. Keeps points3D.bin unchanged.
+    """
+    bin_path = colmap_dir / "images.bin"
+    if not bin_path.exists():
+        return
+
+    images = read_extrinsics_binary(str(bin_path))
+    existing = {f.name for f in img_dir.iterdir() if f.is_file()}
+    filtered = {iid: img for iid, img in images.items() if img.name in existing}
+    dropped = len(images) - len(filtered)
+    if dropped:
+        print(f"  [COLMAP] filtering: {len(images)} -> {len(filtered)} ({dropped} images without files)")
+        write_extrinsics_binary(filtered, str(bin_path))
+    else:
+        print(f"  [COLMAP] {len(images)} images, all files present OK")
+
 
 def prepare_scene(scene: str, work_dir: Path) -> Path:
     """Copy scene data into working directory in COLMAP format 3DGS expects."""
@@ -60,6 +89,9 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
     dp = src / "depth_params.json"
     if dp.exists():
         shutil.copy(str(dp), str(dst / "depth_params.json"))
+
+    # Filter COLMAP data to only reference images that actually exist
+    _filter_colmap_to_existing_images(sp_dst / "0", img_dst)
 
     # test_poses.csv
     for tp in [src / "test" / "test_poses.csv", src / "test_poses.csv"]:

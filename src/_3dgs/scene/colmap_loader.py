@@ -177,6 +177,29 @@ def read_intrinsics_text(path):
                                             params=params)
     return cameras
 
+def write_extrinsics_binary(images, path_to_model_file):
+    """Write COLMAP images.bin from a dict of Image objects.
+
+    Inverse of read_extrinsics_binary.
+    """
+    with open(path_to_model_file, "wb") as fid:
+        fid.write(struct.pack("<Q", len(images)))
+        for img in images.values():
+            fid.write(struct.pack("<i", img.id))
+            for v in img.qvec:
+                fid.write(struct.pack("<d", v))
+            for v in img.tvec:
+                fid.write(struct.pack("<d", v))
+            fid.write(struct.pack("<i", img.camera_id))
+            fid.write(img.name.encode("utf-8") + b"\x00")
+            n = len(img.xys)
+            fid.write(struct.pack("<Q", n))
+            for i in range(n):
+                fid.write(struct.pack("<d", img.xys[i, 0]))
+                fid.write(struct.pack("<d", img.xys[i, 1]))
+                fid.write(struct.pack("<q", int(img.point3D_ids[i])))
+
+
 def read_extrinsics_binary(path_to_model_file):
     """
     see: src/base/reconstruction.cc
