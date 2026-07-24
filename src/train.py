@@ -42,12 +42,19 @@ def _filter_colmap_to_existing_images(colmap_dir: Path, img_dir: Path) -> None:
     """Filter COLMAP images.bin to only include images that exist in img_dir.
 
     Rewrites images.bin in place. Keeps points3D.bin unchanged.
+    Handles corrupted files gracefully — if read fails, skips filtering.
     """
     bin_path = colmap_dir / "images.bin"
     if not bin_path.exists():
         return
 
-    images = read_extrinsics_binary(str(bin_path))
+    try:
+        images = read_extrinsics_binary(str(bin_path))
+    except Exception as e:
+        print(f"  [WARN] Could not read {bin_path.name}: {e}")
+        print(f"  [WARN] Skipping COLMAP filtering, using original file")
+        return
+
     existing = {f.name for f in img_dir.iterdir() if f.is_file()}
     filtered = {iid: img for iid, img in images.items() if img.name in existing}
     dropped = len(images) - len(filtered)
@@ -62,6 +69,9 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
     """Copy scene data into working directory in COLMAP format 3DGS expects."""
     src = _cfg.DATA_DIR / scene
     dst = work_dir / scene
+    # Clean workspace to avoid using corrupted files from previous failed runs
+    if dst.exists():
+        shutil.rmtree(dst)
     dst.mkdir(parents=True, exist_ok=True)
 
     # Images
@@ -69,7 +79,7 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
     if not img_src.exists():
         img_src = src / "images"
     img_dst = dst / "images"
-    if img_src.exists() and not img_dst.exists():
+    if img_src.exists():
         shutil.copytree(str(img_src), str(img_dst))
 
     # COLMAP sparse
@@ -77,13 +87,13 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
     if not sp_src.exists():
         sp_src = src / "sparse"
     sp_dst = dst / "sparse"
-    if sp_src.exists() and not sp_dst.exists():
+    if sp_src.exists():
         shutil.copytree(str(sp_src), str(sp_dst))
 
     # Depth maps (pre-generated)
     dep_src = src / "depths"
     dep_dst = dst / "depths"
-    if dep_src.exists() and not dep_dst.exists():
+    if dep_src.exists():
         shutil.copytree(str(dep_src), str(dep_dst))
 
     # depth_params.json

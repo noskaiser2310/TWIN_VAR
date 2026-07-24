@@ -179,9 +179,8 @@ class Variant:
             a.extend(str(c) for c in self.checkpoint_iterations)
         if self.quiet:
             a.append("--quiet")
-        else:
-            # Still suppress viewer for headless
-            a.append("--disable_viewer")
+        # Always disable viewer for headless training (prevents port conflict OSError)
+        a.append("--disable_viewer")
         if self.start_checkpoint and base_model_path:
             chkpnt_dir = os.path.join(base_model_path, "point_cloud")
             candidate_iters = []
