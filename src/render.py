@@ -49,6 +49,7 @@ from scene import Scene, GaussianModel
 from gaussian_renderer import render
 from scene.cameras import MiniCam
 from utils.general_utils import safe_state
+from utils.graphics_utils import getProjectionMatrix
 
 test_poses = json.loads("""{poses_json}""")
 safe_state(True)
@@ -84,9 +85,17 @@ for i, p in enumerate(test_poses):
     FoVx = 2 * math.atan(w / (2 * fx))
     FoVy = 2 * math.atan(h / (2 * fy))
 
-    vp = MiniCam(resolution=(w, h), colmap_id=i, R=R_t, T=T_t,
-                 FoVx=FoVx, FoVy=FoVy, depth_params=None,
-                 image=None, invdepthmap=None, depth_mask=None)
+    znear, zfar = 0.01, 100.0
+    world_view_transform = torch.eye(4, device="cuda")
+    world_view_transform[:3, :3] = R_t
+    world_view_transform[:3, 3] = T_t
+    proj_matrix = getProjectionMatrix(znear, zfar, FoVx, FoVy).transpose(0, 1)
+    full_proj_transform = world_view_transform @ proj_matrix
+
+    vp = MiniCam(width=w, height=h, fovy=FoVy, fovx=FoVx,
+                 znear=znear, zfar=zfar,
+                 world_view_transform=world_view_transform,
+                 full_proj_transform=full_proj_transform)
 
     with torch.no_grad():
         rendering = render(vp, gs, pipe, bg)["render"]
