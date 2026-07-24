@@ -134,7 +134,7 @@ def render(scene: str, variant: str, gs_dir: Path | None = None) -> bool:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Check if already rendered
-    existing = list(output_dir.glob("*.png"))
+    existing = list(output_dir.iterdir())
     if len(existing) >= len(test_poses):
         print(f"  [SKIP] Already rendered {len(existing)} images")
         return True
@@ -156,7 +156,7 @@ def render(scene: str, variant: str, gs_dir: Path | None = None) -> bool:
             timeout=3600,
         )
         if r.returncode == 0:
-            rendered = list(output_dir.glob("*.png"))
+            rendered = [f for f in output_dir.iterdir() if f.is_file()]
             print(f"  [OK] {scene}/{variant}: {len(rendered)} images")
             return True
         else:
