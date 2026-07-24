@@ -428,6 +428,11 @@ VARIANTS: list[Variant] = [
     Variant("hcm_sh5_60k",     iters=60_000, sh_degree=5, depth=True, exposure=True, antialias=True, sparse_adam=True,
             multiscale=True, checkpoint_iterations=[30000, 60000]),  # Higher SH for outdoor detail
 
+    # ── Simple variant: giống private notebook (sparse_adam + antialias, ko depth/exposure)
+    #   Chạy ổn định trên T4 vì ko depth/exposure → ít VRAM
+    Variant("simple_60k",      iters=60_000, antialias=True, sparse_adam=True,
+            checkpoint_iterations=[30000, 60000]),
+
     # ── Quick variants (15k iters, ~30 min, không cần chờ) ──
     Variant("quick_15k",       iters=15_000, depth=True, exposure=True, antialias=True, sparse_adam=True),
     Variant("quick_edge_15k",  iters=15_000, depth=True, exposure=True, antialias=True, sparse_adam=True,

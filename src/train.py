@@ -23,6 +23,9 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
+from plyfile import PlyData, PlyElement
+
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 import config as _cfg
@@ -114,9 +117,43 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
     return dst
 
 
+def _prune_ply(ply_path: Path, opacity_threshold: float = 0.005) -> Path:
+    """Prune low-opacity Gaussians from a PLY file to reduce VRAM usage.
+
+    Keeps only Gaussians with sigmoid(opacity) > opacity_threshold.
+    Returns path to the pruned PLY (same file, overwritten in-place).
+    """
+    plydata = PlyData.read(str(ply_path))
+    opacities = np.asarray(plydata.elements[0]["opacity"])
+    # Apply sigmoid: 1 / (1 + exp(-x))
+    sigmoid_opac = 1.0 / (1.0 + np.exp(-opacities))
+    mask = sigmoid_opac > opacity_threshold
+
+    n_before = len(opacities)
+    n_after = mask.sum()
+    print(f"  [PRUNE] {n_before} → {n_after} Gaussians (removed {n_before - n_after}, "
+          f"opacity < {opacity_threshold})")
+
+    # Filter all attributes
+    filtered = {}
+    for prop in plydata.elements[0].properties:
+        data = np.asarray(plydata.elements[0][prop.name])
+        filtered[prop.name] = data[mask]
+
+    # Build new PlyElement
+    dtype_full = [(attr, 'f4') for attr in plydata.elements[0].properties]
+    elements = np.empty(n_after, dtype=dtype_full)
+    for attr in plydata.elements[0].properties:
+        elements[attr.name] = filtered[attr.name]
+    el = PlyElement.describe(elements, 'vertex')
+    PlyData([el]).write(str(ply_path))
+    return ply_path
+
+
 def train(scene: str, variant: Variant, gs_dir: Path | None = None,
            resume_from: str | None = None,
-           resume_path: str | None = None) -> bool:
+           resume_path: str | None = None,
+           prune_loaded: float | None = None) -> bool:
     """Train one 3DGS variant. Returns True on success.
 
     Uses list-based subprocess.run for safety (no shell injection).
@@ -227,6 +264,9 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None,
                     src_label = f"{ply_source}/iter_{load_iter}" if ply_source != "custom" else str(src_variant)
                     print(f"  [RESUME.PLY] {src_label} → {variant.name}")
                     print(f"    Copy {src_ply.name} ({src_ply.stat().st_size / 1024 / 1024:.1f} MB)")
+                    # Prune low-opacity Gaussians to reduce VRAM (T4 friendly)
+                    if prune_loaded is not None:
+                        _prune_ply(tgt_ply, prune_loaded)
                 else:
                     print(f"  [WARN] No PLY at {src_ply}, training from scratch")
             else:
@@ -281,6 +321,10 @@ if __name__ == "__main__":
                     help="Custom path to model directory (for loading from other notebooks). "
                          "Combine with --resume-from or use as full path."
                          "E.g. --resume-path TWIN_VAR/output/models/HCM0421 --resume-from fast")
+    p.add_argument("--prune-loaded", type=float, default=None,
+                    help="Prune low-opacity Gaussians after loading PLY. "
+                         "Value = sigmoid opacity threshold (e.g. 0.005). "
+                         "Reduces VRAM usage when resuming from large PLY files.")
     args = p.parse_args()
 
     if args.data_dir:
@@ -308,5 +352,6 @@ if __name__ == "__main__":
 
     success = train(args.scene, variant, Path(args.gs_dir) if args.gs_dir else None,
                      resume_from=args.resume_from,
-                     resume_path=args.resume_path)
+                     resume_path=args.resume_path,
+                     prune_loaded=args.prune_loaded)
     sys.exit(0 if success else 1)
