@@ -119,8 +119,8 @@ def render(scene: str, variant: str, gs_dir: Path | None = None) -> bool:
         print(f"  [SKIP] No trained model at {model_path}")
         return False
     has_checkpoint = any(
-        (pc_dir / d).exists()
-        for d in ["iteration_-1", "iteration_7000", "iteration_30000", "iteration_60000", "iteration_90000"]
+        d.is_dir() and d.name.startswith("iteration_")
+        for d in pc_dir.iterdir()
     )
     if not has_checkpoint:
         print(f"  [SKIP] No checkpoint in {pc_dir}")
