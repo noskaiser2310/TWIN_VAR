@@ -192,10 +192,12 @@ def phase_init_submodules() -> bool:
             if ext_path.exists():
                 shutil.rmtree(ext_path)
             ext_path.parent.mkdir(parents=True, exist_ok=True)
-            r = subprocess.run(
-                ["git", "clone", "--recursive" if recursive else "", fallback_url, str(ext_path)],
-                cwd=ROOT, check=False, capture_output=True, text=True,
-            )
+            clone_cmd = ["git", "clone"]
+            if recursive:
+                clone_cmd.append("--recursive")
+            clone_cmd += [fallback_url, str(ext_path)]
+            r = subprocess.run(clone_cmd, cwd=ROOT, check=False,
+                               capture_output=True, text=True)
             if r.returncode == 0 and (ext_path / "setup.py").exists():
                 print(f"  ✅ {name}: initialized via fallback clone")
                 continue
