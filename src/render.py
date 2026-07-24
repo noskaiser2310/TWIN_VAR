@@ -35,7 +35,7 @@ def get_test_poses_csv(scene: str) -> Path:
     raise FileNotFoundError(f"test_poses.csv not found for {scene}")
 
 
-def build_render_script(model_path: str, test_poses: list[dict], output_dir: str, gs_dir: str) -> str:
+def build_render_script(workspace_path: str, model_path: str, test_poses: list[dict], output_dir: str, gs_dir: str) -> str:
     """Generate a self-contained Python script that loads model + renders all poses."""
     poses_json = json.dumps(test_poses)
 
@@ -53,7 +53,7 @@ from utils.general_utils import safe_state
 test_poses = json.loads("""{poses_json}""")
 safe_state(True)
 
-ds = Namespace(source_path="{model_path}", model_path="{model_path}",
+ds = Namespace(source_path="{workspace_path}", model_path="{model_path}",
                sh_degree=3, images="images", resolution=-1,
                white_background=False, data_device="cuda",
                eval=False, train_test_exp=False)
@@ -130,8 +130,9 @@ def render(scene: str, variant: str, gs_dir: Path | None = None) -> bool:
         print(f"  [SKIP] Already rendered {len(existing)} images")
         return True
 
+    workspace_path = OUTPUT_DIR / "workspaces" / scene
     script_code = build_render_script(
-        str(model_path), test_poses, str(output_dir), str(gs_dir)
+        str(workspace_path), str(model_path), test_poses, str(output_dir), str(gs_dir)
     )
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tf:
