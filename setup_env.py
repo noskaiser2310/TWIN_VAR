@@ -35,6 +35,13 @@ CUDA_EXTENSIONS = [
 ]
 
 
+# ── Submodule fallback URLs ──────────────────────────────────
+# simple-knn GitLab thường không truy cập được trên Kaggle
+SUBMODULE_FALLBACKS = {
+    "simple-knn": "https://github.com/camenduru/simple-knn.git",
+}
+
+
 # ── System Dependencies ────────────────────────────────────────
 APT_PACKAGES = [
     "colmap",
@@ -142,6 +149,55 @@ def _set_compiler_env() -> None:
         print(f"  ⚙  Compiler: CC={gcc10}, CXX={gpp10}")
     else:
         print("  ⚠  gcc-10/g++-10 not found, using default compiler")
+
+
+def phase_init_submodules() -> bool:
+    """Initialize 3DGS submodules (simple-knn, fused-ssim, rasterizer).
+
+    Handles fallback URLs for repos that fail to clone from original source.
+    """
+    print("\n📦 PHASE: Initialize Submodules")
+    all_ok = True
+
+    for name, rel_path in [
+        ("diff-gaussian-rasterization", "submodules/diff-gaussian-rasterization"),
+        ("fused-ssim", "submodules/fused-ssim"),
+        ("simple-knn", "submodules/simple-knn"),
+    ]:
+        ext_path = SUBMODULES / name
+        if ext_path.exists() and (ext_path / "setup.py").exists():
+            print(f"  ✅ {name}: already initialized")
+            continue
+
+        # Try git submodule update
+        print(f"  ⏳ Initializing {name}...")
+        r = subprocess.run(
+            ["git", "submodule", "update", "--init", rel_path],
+            cwd=ROOT, check=False, capture_output=True, text=True,
+        )
+        if r.returncode == 0 and (ext_path / "setup.py").exists():
+            print(f"  ✅ {name}: initialized via git submodule")
+            continue
+
+        # Fallback: clone from alternative URL
+        fallback_url = SUBMODULE_FALLBACKS.get(name)
+        if fallback_url:
+            print(f"  ⏳ {name}: git submodule failed, trying fallback {fallback_url}")
+            if ext_path.exists():
+                shutil.rmtree(ext_path)
+            ext_path.parent.mkdir(parents=True, exist_ok=True)
+            r = subprocess.run(
+                ["git", "clone", fallback_url, str(ext_path)],
+                cwd=ROOT, check=False, capture_output=True, text=True,
+            )
+            if r.returncode == 0 and (ext_path / "setup.py").exists():
+                print(f"  ✅ {name}: initialized via fallback clone")
+                continue
+
+        print(f"  ❌ {name}: failed to initialize (no setup.py)")
+        all_ok = False
+
+    return all_ok
 
 
 def phase_cuda_extensions() -> bool:
@@ -285,6 +341,10 @@ def main():
 
     if not args.skip_pip:
         phase_pip()
+
+    # Initialize submodules BEFORE building CUDA extensions
+    # (git clone --recursive không được dùng, submodules cần init riêng)
+    phase_init_submodules()
 
     if not args.skip_cuda_ext:
         phase_cuda_extensions()
