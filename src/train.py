@@ -140,6 +140,12 @@ def _prune_ply(ply_path: Path, opacity_threshold: float = 0.005) -> Path:
         data = np.asarray(plydata.elements[0][prop.name])
         filtered[prop.name] = data[mask]
 
+    # Safety: if pruning removes almost everything, warn user
+    if n_after < 1000:
+        print(f"  [WARN] --prune-loaded removed {n_before - n_after}/{n_before} Gaussians!")
+        print(f"  [WARN] Keeping original PLY (at least 1000 Gaussians required)")
+        return ply_path
+
     # Build new PlyElement
     dtype_full = [(attr, 'f4') for attr in plydata.elements[0].properties]
     elements = np.empty(n_after, dtype=dtype_full)
