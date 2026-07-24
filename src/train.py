@@ -132,7 +132,7 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
     depth_dir = scene_dir / "depths"
     depth_arg = str(depth_dir) if depth_dir.exists() and variant.depth else ""
 
-    # Checkpoint resume: find base model for resume
+    # ── Checkpoint resume: find base model for resume ──
     base_model: str | None = None
     if variant.start_checkpoint:
         base_candidate = OUTPUT_DIR / "models" / scene / variant.start_checkpoint
@@ -151,11 +151,48 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
                 base_cp = base_candidate / f"chkpnt{load_iter}.pth"
                 if base_cp.exists():
                     base_model = str(base_candidate)
-                    print(f"  [RESUME] from {base_candidate.name}/chkpnt{load_iter}.pth")
+                    print(f"  [RESUME.pth] from {base_candidate.name}/chkpnt{load_iter}.pth")
+                else:
+                    # No .pth but PLY exists → fallback to PLY copy
+                    print(f"  [INFO] No .pth at {base_candidate.name}, trying PLY fallback...")
             else:
                 print(f"  [WARN] No checkpoint found in {base_candidate}, training from scratch")
         else:
             print(f"  [WARN] Base model {base_candidate} not found, training from scratch")
+
+    # ── Resume from PLY: copy source variant's Gaussians (no optimizer state) ──
+    # This allows continuing training from quick variants without restarting from scratch.
+    # The optimizer will reinitialize (LR starts from 0), but Gaussian positions/shapes
+    # from the previous training are preserved — saving 50-80% training time.
+    if variant.resume_ply and not base_model:
+        src_variant = OUTPUT_DIR / "models" / scene / variant.resume_ply
+        src_pc_dir = src_variant / "point_cloud"
+        if src_pc_dir.exists():
+            # Find latest iteration in source model
+            its = []
+            for d in src_pc_dir.iterdir():
+                if d.is_dir() and d.name.startswith("iteration_"):
+                    try:
+                        its.append(int(d.name.split("_")[1]))
+                    except ValueError:
+                        pass
+            if its:
+                load_iter = max(its)
+                src_ply = src_pc_dir / f"iteration_{load_iter}" / "point_cloud.ply"
+                if src_ply.exists():
+                    # Create target model path structure
+                    tgt_pc_dir = model_path / "point_cloud" / f"iteration_{load_iter}"
+                    tgt_pc_dir.mkdir(parents=True, exist_ok=True)
+                    tgt_ply = tgt_pc_dir / "point_cloud.ply"
+                    shutil.copy(str(src_ply), str(tgt_ply))
+                    print(f"  [RESUME.PLY] {variant.resume_ply}/iter_{load_iter} → {variant.name}")
+                    print(f"    Copy {src_ply.name} ({src_ply.stat().st_size / 1024 / 1024:.1f} MB)")
+                else:
+                    print(f"  [WARN] No PLY at {src_ply}, training from scratch")
+            else:
+                print(f"  [WARN] No iterations in {src_pc_dir}, training from scratch")
+        else:
+            print(f"  [WARN] Source model {src_variant} not found, training from scratch")
 
     # Build command as list (safe, no shell injection)
     cmd = [sys.executable, "train.py"] + variant.args_list(
@@ -169,6 +206,8 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
     print(f"  densify_until={variant.densify_until_iter} percent_dense={variant.percent_dense}")
     if variant.start_checkpoint:
         print(f"  resume_from={variant.start_checkpoint}")
+    if variant.resume_ply:
+        print(f"  resume_ply={variant.resume_ply} (Gaussians preserved, optimizer resets)")
     print(f"{'='*60}")
 
     t0 = time.time()

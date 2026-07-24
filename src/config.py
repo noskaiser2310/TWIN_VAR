@@ -84,7 +84,8 @@ class Variant:
     sky_mask: bool = False               # Mask sky pixels in loss (outdoor drone)
     edge_guided: bool = False            # Edge-guided densification (thin structures)
     edge_boost: float = 0.5              # Boost multiplier for edge Gaussians
-    start_checkpoint: str = ""           # Resume from this variant's checkpoint
+    start_checkpoint: str = ""           # Resume from this variant's .pth checkpoint (with optimizer state)
+    resume_ply: str = ""                  # Resume from this variant's PLY (no optimizer state, inherits Gaussians)
 
     # ── OptimizationParams (drone-tuned) ─────────────────
     lambda_dssim: float = 0.3            # ↑0.3 for thin BTS structures (default 0.2)
@@ -425,6 +426,13 @@ VARIANTS: list[Variant] = [
     Variant("quick_15k",       iters=15_000, depth=True, exposure=True, antialias=True, sparse_adam=True),
     Variant("quick_edge_15k",  iters=15_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
             multiscale=True, edge_guided=True, edge_boost=0.5),  # Quick edge test
+
+    # ── Resume từ quick variants (load PLY, train tiếp, ko cần chờ 60k từ đầu) ──
+    Variant("quick_60k",       iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            resume_ply="quick_15k", checkpoint_iterations=[30000, 60000]),  # quick_15k → 60k tiếp
+    Variant("quick_edge_60k",  iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            multiscale=True, sky_mask=True, edge_guided=True, edge_boost=0.5,
+            resume_ply="quick_edge_15k", checkpoint_iterations=[30000, 60000]),  # quick_edge_15k → 60k tiếp
 ]
 
 # ═══════════════════════════════════════════════════════════════
