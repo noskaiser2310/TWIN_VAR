@@ -104,11 +104,15 @@ def prepare_scene(scene: str, work_dir: Path) -> Path:
     return dst
 
 
-def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
+def train(scene: str, variant: Variant, gs_dir: Path | None = None,
+           resume_from: str | None = None) -> bool:
     """Train one 3DGS variant. Returns True on success.
 
     Uses list-based subprocess.run for safety (no shell injection).
-    Supports checkpoint resume via variant.start_checkpoint.
+    Supports checkpoint resume via:
+      - variant.start_checkpoint: .pth checkpoint (preserves optimizer state)
+      - variant.resume_ply: PLY from another variant (preserves Gaussians only)
+      - --resume-from flag: override, loads PLY from any variant at runtime
     """
     if gs_dir is None:
         gs_dir = GS_DIR
@@ -164,8 +168,16 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
     # This allows continuing training from quick variants without restarting from scratch.
     # The optimizer will reinitialize (LR starts from 0), but Gaussian positions/shapes
     # from the previous training are preserved — saving 50-80% training time.
-    if variant.resume_ply and not base_model:
-        src_variant = OUTPUT_DIR / "models" / scene / variant.resume_ply
+    # Priority: --resume-from CLI override > variant.resume_ply config
+    if resume_from:
+        ply_source = resume_from
+    elif variant.resume_ply and not base_model:
+        ply_source = variant.resume_ply
+    else:
+        ply_source = None
+
+    if ply_source:
+        src_variant = OUTPUT_DIR / "models" / scene / ply_source
         src_pc_dir = src_variant / "point_cloud"
         if src_pc_dir.exists():
             # Find latest iteration in source model
@@ -185,7 +197,7 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
                     tgt_pc_dir.mkdir(parents=True, exist_ok=True)
                     tgt_ply = tgt_pc_dir / "point_cloud.ply"
                     shutil.copy(str(src_ply), str(tgt_ply))
-                    print(f"  [RESUME.PLY] {variant.resume_ply}/iter_{load_iter} → {variant.name}")
+                    print(f"  [RESUME.PLY] {ply_source}/iter_{load_iter} → {variant.name}")
                     print(f"    Copy {src_ply.name} ({src_ply.stat().st_size / 1024 / 1024:.1f} MB)")
                 else:
                     print(f"  [WARN] No PLY at {src_ply}, training from scratch")
@@ -204,10 +216,12 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
     print(f"  sh_degree={variant.sh_degree} eval_mode={variant.eval_mode} lambda_dssim={variant.lambda_dssim}")
     print(f"  white_bg={variant.white_bg} depth_l1_weight_init={variant.depth_l1_weight_init}")
     print(f"  densify_until={variant.densify_until_iter} percent_dense={variant.percent_dense}")
-    if variant.start_checkpoint:
+    if resume_from:
+        print(f"  --resume-from={resume_from}")
+    elif variant.start_checkpoint:
         print(f"  resume_from={variant.start_checkpoint}")
-    if variant.resume_ply:
-        print(f"  resume_ply={variant.resume_ply} (Gaussians preserved, optimizer resets)")
+    elif variant.resume_ply:
+        print(f"  resume_ply={variant.resume_ply}")
     print(f"{'='*60}")
 
     t0 = time.time()
@@ -233,6 +247,8 @@ if __name__ == "__main__":
                     help="Smoke test: 100 iters, no densification, no eval")
     p.add_argument("--gs-dir", default=None)
     p.add_argument("--data-dir", default=None, help="Override data directory")
+    p.add_argument("--resume-from", default=None,
+                    help="Load PLY from this variant and continue training (e.g. --resume-from quick_15k)")
     args = p.parse_args()
 
     if args.data_dir:
@@ -257,5 +273,6 @@ if __name__ == "__main__":
         variant.eval_mode = False
         print(f"  [CHECK] Override: {variant.iters} iters, no densify, no eval")
 
-    success = train(args.scene, variant, Path(args.gs_dir) if args.gs_dir else None)
+    success = train(args.scene, variant, Path(args.gs_dir) if args.gs_dir else None,
+                     resume_from=args.resume_from)
     sys.exit(0 if success else 1)
