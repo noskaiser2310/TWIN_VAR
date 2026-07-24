@@ -95,10 +95,16 @@ class Variant:
     depth_l1_weight_init: float = 1.0    # Depth regularization start weight
     depth_l1_weight_final: float = 0.05  # ↑0.05 keeps depth influence longer
     position_lr_init: float = 0.00016    # Standard (can override per-scene)
+    position_lr_max_steps: int = 0       # 0 = auto-match iters (default 3DGS: 30_000)
     feature_lr: float = 0.0025           # Standard
     opacity_lr: float = 0.025
     scaling_lr: float = 0.005
     rotation_lr: float = 0.001
+
+    # ── Post-init: auto-match position_lr_max_steps to iters ──
+    def __post_init__(self):
+        if self.position_lr_max_steps <= 0:
+            self.position_lr_max_steps = self.iters
 
     # ── Checkpoint config ───────────────────────────────
     checkpoint_iterations: list[int] = field(default_factory=list)  # Save .pth checkpoints
@@ -127,6 +133,7 @@ class Variant:
             "--depth_l1_weight_init", str(self.depth_l1_weight_init),
             "--depth_l1_weight_final", str(self.depth_l1_weight_final),
             "--position_lr_init", str(self.position_lr_init),
+            "--position_lr_max_steps", str(self.position_lr_max_steps),
             "--feature_lr", str(self.feature_lr),
             "--opacity_lr", str(self.opacity_lr),
             "--scaling_lr", str(self.scaling_lr),

@@ -284,6 +284,7 @@ if __name__ == "__main__":
     variant = vmap[args.variant]
     if args.iters:
         variant.iters = args.iters
+        variant.position_lr_max_steps = args.iters  # Sync LR schedule with custom iters
 
     # Apply per-scene tuning overrides (indoor vs outdoor BTS)
     variant = get_scene_variant(variant, args.scene)
