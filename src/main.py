@@ -69,8 +69,9 @@ def validate(scenes: list[str]) -> bool:
     print("PHASE 1: VALIDATE DATA")
     print("=" * 60)
     ok = True
+    dd = _cfg.DATA_DIR  # luôn lấy từ config module (đã được set_data_dir cập nhật)
     for scene in scenes:
-        d = DATA_DIR / scene
+        d = dd / scene
         reqs = [
             (d / "train" / "images", "train images"),
             (d / "train" / "sparse" / "0" / "cameras.bin", "COLMAP cameras"),
@@ -246,12 +247,8 @@ def main():
 
     if args.data_dir:
         set_data_dir(args.data_dir)
-        # Cập nhật local references sau khi set_data_dir thay đổi module vars
-        global DATA_DIR, SCENES
-        DATA_DIR = _cfg.DATA_DIR
-        SCENES = _cfg.SCENES
 
-    scenes = args.scenes if args.scenes else SCENES
+    scenes = args.scenes if args.scenes else _cfg.SCENES
 
     if args.all_variants:
         variant_names = [v.name for v in VARIANTS]
@@ -273,7 +270,7 @@ def main():
         print(f"  + Test-time adaptation (Phase 3.6)")
 
     global DATA_DIR_ARG
-    DATA_DIR_ARG = ["--data-dir", str(DATA_DIR)] if args.data_dir else []
+    DATA_DIR_ARG = ["--data-dir", str(_cfg.DATA_DIR)] if args.data_dir else []
 
     if args.dry_run:
         print(f"\n  [DRY RUN] Would execute but not run.")
