@@ -39,14 +39,24 @@ def package(scenes: list[str] | None = None, source: str = "final",
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for scene in scenes:
             src_dir = OUTPUT_DIR / source / scene
-            if not src_dir.exists():
-                # Try alternative source
+            if not src_dir.exists() or not any(src_dir.iterdir()):
+                found = False
                 for alt_src in ["final", "ensemble"]:
                     alt = OUTPUT_DIR / alt_src / scene
-                    if alt.exists():
+                    if alt.exists() and any(alt.iterdir()):
                         src_dir = alt
+                        found = True
                         break
-                if not src_dir.exists():
+                if not found:
+                    # Fallback: use first variant dir under renders/
+                    renders_scene = OUTPUT_DIR / "renders" / scene
+                    if renders_scene.exists():
+                        for d in sorted(renders_scene.iterdir()):
+                            if d.is_dir() and any(d.iterdir()):
+                                src_dir = d
+                                found = True
+                                break
+                if not found:
                     print(f"  [SKIP] {scene}: no images at {src_dir}")
                     report["scenes"][scene] = {"expected": 0, "added": 0, "missing": 0}
                     continue

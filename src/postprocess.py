@@ -82,7 +82,12 @@ def process_scene(scene: str, input_dir: Path | None = None) -> int:
     stats = compute_train_stats(scene) if COLOR_MATCH else None
 
     count = 0
-    for p in sorted(input_dir.glob("*.png")):
+    exts = {"*.png", "*.jpg", "*.jpeg"}
+    files = []
+    for e in exts:
+        files.extend(input_dir.glob(e))
+    files.sort()
+    for p in files:
         img = cv2.imread(str(p))
         if img is None:
             continue
