@@ -226,29 +226,30 @@ _CHAIR_DEFAULTS: dict = {
 
 # Outdoor BTS with SPARSE COLMAP (HCM0421: 16.5MB, HCM0674: 15.2MB)
 # → COLMAP struggles → compensate with stronger densification + depth.
-#   Values balanced to avoid OOM on T4 16GB (240 imgs × sparse Gaussians).
-# NOTE: sh_degree intentionally omitted (dataclass default=4) so variant-level
-# overrides like hcm_sh5_60k (sh_degree=5) are NOT silently overwritten.
+#   Adjusted for T4 14.56 GiB (actual usable, not 16 GiB) to avoid OOM.
+#   NOTE: sh_degree intentionally omitted (dataclass default=4) so variant-level
+#   overrides like hcm_sh5_60k (sh_degree=5) are NOT silently overwritten.
 _OUTDOOR_SPARSE_DEFAULTS: dict = {
     "white_bg": False,
     "lambda_dssim": 0.3,
-    "percent_dense": 0.035,              # ↑↑ Very aggressive (3.5x default, balanced for T4)
-    "densify_until_iter": 28_000,        # ↑↑ Extended (caps below 30k variants' iters)
-    "densify_grad_threshold": 0.0001,    # ↓↓ Aggressive (not extreme: avoids OOM)
+    "percent_dense": 0.025,              # ↓ 0.035→0.025: giảm max Gaussians, tránh OOM trên T4
+    "densify_until_iter": 22_000,        # ↓ 28k→22k: dừng densify sớm hơn, tiết kiệm VRAM
+    "densify_grad_threshold": 0.00015,   # ↑ 0.0001→0.00015: ít densify hơn, kiểm soát số Gaussians
     "depth_l1_weight_init": 2.0,         # ↑↑ Strong depth (balanced: noisy drone depth)
     "depth_l1_weight_final": 0.12,       # ↑↑ Keep depth active
 }
 
 # Outdoor BTS with DENSE COLMAP (HCM0539: 22.1MB, HCM0644: 21.4MB, HCM0540: 20.2MB)
 # → COLMAP already captured good structure → moderate tuning
-# NOTE: sh_degree intentionally omitted (dataclass default=4) so variant-level
-# overrides like hcm_sh5_60k (sh_degree=5) are NOT silently overwritten.
+#   Adjusted for T4 14.56 GiB: HCM0539 crashed OOM at iter 15,900 with 9.55 GiB allocated.
+#   NOTE: sh_degree intentionally omitted (dataclass default=4) so variant-level
+#   overrides like hcm_sh5_60k (sh_degree=5) are NOT silently overwritten.
 _OUTDOOR_DENSE_DEFAULTS: dict = {
     "white_bg": False,
     "lambda_dssim": 0.3,
-    "percent_dense": 0.025,              # ↑ Moderate (COLMAP already dense)
-    "densify_until_iter": 25_000,        # Standard outdoor
-    "densify_grad_threshold": 0.00012,   # ↓ Moderate
+    "percent_dense": 0.02,               # ↓ 0.025→0.02: giảm max Gaussians, tránh OOM trên T4
+    "densify_until_iter": 20_000,        # ↓ 25k→20k: dừng densify sớm hơn
+    "densify_grad_threshold": 0.00015,   # ↑ 0.00012→0.00015: ít densify hơn
     "depth_l1_weight_init": 1.8,         # ↑ Moderate depth weight
     "depth_l1_weight_final": 0.08,       # ↑ Moderate
 }
@@ -417,15 +418,21 @@ VARIANTS: list[Variant] = [
     # ── High SH degree variant (caution: ~36 coefs vs 25, may OOM on T4) ──
     Variant("hcm_sh5_60k",     iters=60_000, sh_degree=5, depth=True, exposure=True, antialias=True, sparse_adam=True,
             multiscale=True, checkpoint_iterations=[30000, 60000]),  # Higher SH for outdoor detail
+
+    # ── Quick variants (15k iters, ~30 min, không cần chờ) ──
+    Variant("quick_15k",       iters=15_000, depth=True, exposure=True, antialias=True, sparse_adam=True),
+    Variant("quick_edge_15k",  iters=15_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
+            multiscale=True, edge_guided=True, edge_boost=0.5),  # Quick edge test
 ]
 
 # ═══════════════════════════════════════════════════════════════
 #  ENHANCED ENSEMBLE CONFIG (v2.0)
 # ═══════════════════════════════════════════════════════════════
 
-ENSEMBLE_VARIANTS = ["hcm_90k", "hcm_edge_strong", "hcm_sh5_60k", "indoor_60k", "indoor_edge_60k", "multiscale_edge", "multiscale_sky", "edge_60k", "multiscale_60k", "multiscale", "full_60k", "big", "full", "depth_expo", "antialias", "exposure", "depth", "baseline"]
+ENSEMBLE_VARIANTS = ["quick_edge_15k", "quick_15k", "hcm_90k", "hcm_edge_strong", "hcm_sh5_60k", "indoor_60k", "indoor_edge_60k", "multiscale_edge", "multiscale_sky", "edge_60k", "multiscale_60k", "multiscale", "full_60k", "big", "full", "depth_expo", "antialias", "exposure", "depth", "baseline"]
 ENSEMBLE_FALLBACK = ["multiscale_edge", "multiscale_60k", "full_60k", "big", "full", "depth_expo"]
 ENSEMBLE_PRIORS = {
+    "quick_edge_15k": 0.85, "quick_15k": 0.80,  # Quick variants (lower weight vs 60k)
     "indoor_edge_60k": 1.20, "indoor_60k": 1.15,  # Indoor-optimized (very high quality)
     "hcm_90k": 1.18, "hcm_edge_strong": 1.15, "hcm_sh5_60k": 1.12,  # Outdoor HCM variants
     "multiscale_edge": 1.15, "multiscale_sky": 1.12, "edge_60k": 1.08,

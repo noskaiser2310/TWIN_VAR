@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -114,6 +115,15 @@ def train(scene: str, variant: Variant, gs_dir: Path | None = None) -> bool:
     if not (gs_dir / "train.py").exists():
         print(f"[ERROR] 3DGS not found at {gs_dir}. Set GS_DIR in config.py or use --gs-dir")
         return False
+
+    # ── CUDA memory optimization (T4 friendly) ──
+    # PYTORCH_ALLOC_CONF=expandable_segments:True reduces memory fragmentation
+    # that causes OOM during densification (split/clone operations).
+    # Without this, PyTorch reserves large contiguous blocks that fragment over time.
+    if "PYTORCH_ALLOC_CONF" in os.environ:
+        os.environ["PYTORCH_ALLOC_CONF"] += ",expandable_segments:True"
+    else:
+        os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 
     work_dir = OUTPUT_DIR / "workspaces"
     scene_dir = prepare_scene(scene, work_dir)
