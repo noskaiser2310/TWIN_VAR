@@ -288,7 +288,15 @@ class GaussianModel:
 
         extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
         extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
-        assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
+        n_extra = len(extra_f_names)
+        expected = 3 * (self.max_sh_degree + 1) ** 2 - 3
+        if n_extra != expected:
+            # Infer actual SH degree from PLY data instead of hard-asserting
+            actual_degree = int((n_extra / 3 + 1) ** 0.5) - 1
+            print(f"  [INFO] PLY has {n_extra} SH extra features "
+                  f"(expected {expected} for max_sh_degree={self.max_sh_degree}), "
+                  f"inferring actual max_sh_degree={actual_degree}")
+            self.max_sh_degree = actual_degree
         features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
         for idx, attr_name in enumerate(extra_f_names):
             features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
