@@ -231,6 +231,7 @@ _CHAIR_DEFAULTS: dict = {
 #   overrides like hcm_sh5_60k (sh_degree=5) are NOT silently overwritten.
 _OUTDOOR_SPARSE_DEFAULTS: dict = {
     "white_bg": False,
+    "data_device": "cpu",               # CPU lưu ảnh, tiết kiệm ~1-2 GB VRAM (quan trọng trên T4!)
     "lambda_dssim": 0.3,
     "percent_dense": 0.025,              # ↓ 0.035→0.025: giảm max Gaussians, tránh OOM trên T4
     "densify_until_iter": 22_000,        # ↓ 28k→22k: dừng densify sớm hơn, tiết kiệm VRAM
@@ -246,6 +247,7 @@ _OUTDOOR_SPARSE_DEFAULTS: dict = {
 #   overrides like hcm_sh5_60k (sh_degree=5) are NOT silently overwritten.
 _OUTDOOR_DENSE_DEFAULTS: dict = {
     "white_bg": False,
+    "data_device": "cpu",               # CPU lưu ảnh, tiết kiệm ~1-2 GB VRAM (quan trọng trên T4!)
     "lambda_dssim": 0.3,
     "percent_dense": 0.02,               # ↓ 0.025→0.02: giảm max Gaussians, tránh OOM trên T4
     "densify_until_iter": 20_000,        # ↓ 25k→20k: dừng densify sớm hơn

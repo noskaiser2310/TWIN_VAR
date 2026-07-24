@@ -464,6 +464,10 @@ class GaussianModel:
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0
 
+        # Free cached memory before densification to avoid OOM during split/clone
+        # (cat_tensors_to_optimizer concatenates tensors and can spike VRAM)
+        torch.cuda.empty_cache()
+
         self.tmp_radii = radii
         self.densify_and_clone(grads, max_grad, extent)
         self.densify_and_split(grads, max_grad, extent)
