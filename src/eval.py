@@ -20,11 +20,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from config import (
-    DATA_DIR, GS_DIR, OUTPUT_DIR, VARIANTS,
-    PSNR_MAX, LPIPS_WEIGHT, SSIM_WEIGHT, PSNR_WEIGHT,
-    set_data_dir,
-)
+def get_trained_variants(scene: str) -> list[str]:
+    """Get list of variants that have renders (actually trained)."""
+    renders_dir = OUTPUT_DIR / "renders" / scene
+    if not renders_dir.exists():
+        return []
+    return [d.name for d in renders_dir.iterdir() if d.is_dir()]
 
 
 def compute_competition_score(lpips: float, ssim: float, psnr: float) -> float:
@@ -39,7 +40,7 @@ def evaluate_with_metrics_py(scene: str, variants: list[str] | None = None) -> d
     Uses the model_path's built-in test set (from --eval mode training).
     """
     if variants is None:
-        variants = [v.name for v in VARIANTS if v.eval_mode and v.iters >= 7000]
+        variants = get_trained_variants(scene)
 
     results = {}
 
@@ -111,7 +112,7 @@ def evaluate_scene(scene: str, variants: list[str] | None = None) -> dict:
     print(f"{'='*60}")
 
     if variants is None:
-        variants = [v.name for v in VARIANTS if v.eval_mode and v.iters >= 7000]
+        variants = get_trained_variants(scene)
 
     print(f"  Variants: {', '.join(variants)}")
     print(f"  Formula: Score = {LPIPS_WEIGHT}*(1-LPIPS) + {SSIM_WEIGHT}*SSIM + {PSNR_WEIGHT}*PSNR/{PSNR_MAX}")
@@ -148,10 +149,10 @@ if __name__ == "__main__":
     scene = args.scene
 
     if args.all_variants:
-        variants = [v.name for v in VARIANTS if v.eval_mode and v.iters >= 7000]
+        variants = get_trained_variants(scene)
     elif args.variant:
         variants = [args.variant]
     else:
-        variants = None  # default: all eval-enabled
+        variants = None  # default: scan trained variants
 
     evaluate_scene(scene, variants)
