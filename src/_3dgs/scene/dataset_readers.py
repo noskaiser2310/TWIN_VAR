@@ -96,7 +96,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, depths_params, images_fold
             FovX = focal2fov(focal_length_x, width)
         elif intr.model=="SIMPLE_RADIAL":
             focal_length_x = intr.params[0]
-            focal_length_y = intr.params[1]
+            focal_length_y = intr.params[0]  # SIMPLE_RADIAL: [f, cx, cy, k1] — dùng f chung cho cả 2 trục
             FovY = focal2fov(focal_length_y, height)
             FovX = focal2fov(focal_length_x, width)
         else:
