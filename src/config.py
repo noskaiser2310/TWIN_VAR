@@ -428,8 +428,12 @@ VARIANTS: list[Variant] = [
             multiscale=True, edge_guided=True, edge_boost=0.5),  # Quick edge test
 
     # ── Resume từ quick variants (load PLY, train tiếp, ko cần chờ 60k từ đầu) ──
+    # Khi resume từ PLY, optimizer reset → LR khởi động lại từ đầu
+    # Đặt densify_until_iter=15000 để tránh re-densify Gaussians đã tối ưu từ quick_15k
+    # (mặc định scene override sẽ set 20-22k, gây re-densify không cần thiết)
     Variant("quick_60k",       iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
-            resume_ply="quick_15k", checkpoint_iterations=[30000, 60000]),  # quick_15k → 60k tiếp
+            resume_ply="quick_15k", checkpoint_iterations=[30000, 60000],
+            densify_until_iter=15000),  # ← Không re-densify, chỉ fine-tune
     Variant("quick_edge_60k",  iters=60_000, depth=True, exposure=True, antialias=True, sparse_adam=True,
             multiscale=True, sky_mask=True, edge_guided=True, edge_boost=0.5,
             resume_ply="quick_edge_15k", checkpoint_iterations=[30000, 60000]),  # quick_edge_15k → 60k tiếp
