@@ -20,6 +20,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+from config import (
+    DATA_DIR, GS_DIR, OUTPUT_DIR, VARIANTS,
+    PSNR_MAX, LPIPS_WEIGHT, SSIM_WEIGHT, PSNR_WEIGHT,
+    set_data_dir,
+)
+
 def get_trained_variants(scene: str) -> list[str]:
     """Get list of variants that have renders (actually trained)."""
     renders_dir = OUTPUT_DIR / "renders" / scene
